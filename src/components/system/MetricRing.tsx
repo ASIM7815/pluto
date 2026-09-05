@@ -19,9 +19,12 @@ export function MetricRing({
   strokeWidth = 6,
   color = "#ff1f2d"
 }: MetricRingProps) {
+  // Ensure value is a valid number between 0-100
+  const safeValue = typeof value === 'number' && !isNaN(value) ? Math.min(Math.max(value, 0), 100) : 0;
+  
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (value / 100) * circumference;
+  const strokeDashoffset = circumference - (safeValue / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center justify-center group">
@@ -56,7 +59,7 @@ export function MetricRing({
         {/* Center Percentage */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-sm font-bold text-zinc-100 group-hover:text-white font-mono tracking-tight">
-            {value}%
+            {safeValue}%
           </span>
         </div>
       </div>

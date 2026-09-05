@@ -13,6 +13,7 @@ interface PlutoStore {
   confirmationRequired: ActionPreview | null;
   errorMessage: string | null;
   transcript: string;
+  aiResponse: string | null;
 
   setState: (state: PlutoState) => void;
   setCommand: (command: string) => void;
@@ -25,6 +26,7 @@ interface PlutoStore {
   setConfirmationRequired: (preview: ActionPreview | null) => void;
   setErrorMessage: (msg: string | null) => void;
   setTranscript: (text: string) => void;
+  setAiResponse: (response: string | null) => void;
   addActivity: (activity: Activity) => void;
   clearActivities: () => void;
   resetToIdle: () => void;
@@ -77,6 +79,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   confirmationRequired: null,
   errorMessage: null,
   transcript: "",
+  aiResponse: null,
 
   setState: (state) => set({ state }),
   setCommand: (currentCommand) => set({ currentCommand }),
@@ -94,6 +97,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   setConfirmationRequired: (confirmationRequired) => set({ confirmationRequired }),
   setErrorMessage: (errorMessage) => set({ errorMessage }),
   setTranscript: (transcript) => set({ transcript }),
+  setAiResponse: (aiResponse) => set({ aiResponse }),
   addActivity: (activity) =>
     set((s) => ({ activities: [activity, ...s.activities.slice(0, 19)] })),
   clearActivities: () => set({ activities: [] }),
@@ -107,6 +111,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
       actionPreview: null,
       confirmationRequired: null,
       errorMessage: null,
-      transcript: ""
+      transcript: "",
+      aiResponse: null
     })
 }));

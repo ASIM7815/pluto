@@ -1,10 +1,101 @@
 import { usePlutoStore } from "@/store/plutoStore";
 import { ExecutionStep, ActionPreview, Activity } from "@/types";
-import { tauriService } from "./tauri";
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const BACKEND_URL = "http://127.0.0.1:8765";
 
 export const aiService = {
+  ws: null as WebSocket | null,
+  reconnectAttempts: 0,
+  maxReconnectAttempts: 5,
+
+  connectWebSocket(): void {
+    if (this.ws?.readyState === WebSocket.OPEN) return;
+
+    console.log("🔌 Connecting to PLUTO backend...");
+    
+    try {
+      this.ws = new WebSocket(`ws://127.0.0.1:8765/api/chat/ws`);
+
+      this.ws.onopen = () => {
+        console.log("✅ Connected to PLUTO backend");
+        this.reconnectAttempts = 0;
+      };
+
+      this.ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        this.handleBackendEvent(data);
+      };
+
+      this.ws.onerror = (error) => {
+        console.error("❌ WebSocket error:", error);
+      };
+
+      this.ws.onclose = () => {
+        console.log("🔌 Disconnected from backend");
+        this.ws = null;
+        
+        // Auto-reconnect
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          setTimeout(() => this.connectWebSocket(), 2000);
+        }
+      };
+    } catch (error) {
+      console.error("Failed to connect to backend:", error);
+    }
+  },
+
+  handleBackendEvent(data: any): void {
+    const store = usePlutoStore.getState();
+
+    switch (data.type) {
+      case "agent_state":
+        if (data.state) store.setState(data.state);
+        if (data.task) store.setCurrentTask(data.task);
+        if (data.error) store.setErrorMessage(data.error);
+        if (data.data?.response) {
+          // Text response from LLM
+          console.log("💬 Response:", data.data.response);
+          store.setAiResponse(data.data.response);
+        }
+        break;
+
+      case "execution_step":
+        if (data.step) {
+          const currentSteps = store.executionSteps;
+          const existingIndex = currentSteps.findIndex(s => s.id === data.step.id);
+          
+          if (existingIndex >= 0) {
+            store.updateExecutionStep(data.step.id, data.step.status);
+          } else {
+            store.setExecutionSteps([...currentSteps, data.step]);
+          }
+        }
+        break;
+
+      case "activity":
+        if (data.activity) {
+          store.addActivity(data.activity);
+        }
+        break;
+
+      case "action_preview":
+        if (data.preview) {
+          if (data.preview.requiresConfirmation) {
+            store.setConfirmationRequired(data.preview);
+          } else {
+            store.setActionPreview(data.preview);
+          }
+        }
+        break;
+
+      case "error":
+        store.setState("error");
+        store.setErrorMessage(data.error || "An error occurred");
+        break;
+    }
+  },
+
   async executeCommand(rawCommand: string): Promise<void> {
     const store = usePlutoStore.getState();
     const command = rawCommand.trim();
@@ -15,42 +106,72 @@ export const aiService = {
     store.setErrorMessage(null);
     store.setActionPreview(null);
     store.setConfirmationRequired(null);
+    store.setAiResponse(null);
     store.setCommand(command);
     store.setExecuting(true);
+    store.setExecutionSteps([]);
 
-    // Check for error simulation test
-    if (command.toLowerCase().includes("error") || command.toLowerCase().includes("fail")) {
-      await this.handleErrorSimulation(command);
-      return;
+    // Connect WebSocket if not connected
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.connectWebSocket();
+      // Wait a bit for connection
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // 1. UNDERSTANDING
-    store.setState("understanding");
-    store.setCurrentTask("Parsing natural language request...");
-    await sleep(700);
-
-    // 2. THINKING
-    store.setState("thinking");
-    store.setCurrentTask("Analyzing system permissions & OS capabilities...");
-    await sleep(900);
-
-    // Determine task category and steps
-    const lower = command.toLowerCase();
-
-    if (lower.includes("youtube") || lower.includes("song") || lower.includes("music") || lower.includes("play")) {
-      await this.runYouTubePipeline(command);
-    } else if (lower.includes("whatsapp") || lower.includes("owais") || lower.includes("message")) {
-      await this.runWhatsAppPipeline(command);
-    } else if (lower.includes("email") || lower.includes("mail")) {
-      await this.runEmailPipeline(command);
-    } else if (lower.includes("delete") || lower.includes("remove")) {
-      await this.runDeleteConfirmationPipeline(command);
-    } else if (lower.includes("folder") || lower.includes("create") || lower.includes("directory")) {
-      await this.runFolderPipeline(command);
-    } else if (lower.includes("vscode") || lower.includes("vs code") || lower.includes("code")) {
-      await this.runVSCodePipeline(command);
+    // Send command via WebSocket
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log("📤 Sending command:", command);
+      this.ws.send(JSON.stringify({
+        type: "command",
+        command: command
+      }));
     } else {
-      await this.runGenericPipeline(command);
+      // Fallback to REST API if WebSocket fails
+      console.log("⚠️ WebSocket not ready, using REST API");
+      await this.executeCommandREST(command);
+    }
+  },
+
+  async executeCommandREST(command: string): Promise<void> {
+    const store = usePlutoStore.getState();
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/chat/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ command }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        store.setState(result.state);
+        
+        if (result.data?.response) {
+          console.log("💬 Response:", result.data.response);
+          store.setAiResponse(result.data.response);
+        }
+
+        store.addActivity({
+          id: `act-${Date.now()}`,
+          title: "Command Executed",
+          description: result.message || command,
+          timestamp: "Just now",
+          status: "success",
+          category: "automation"
+        });
+
+        setTimeout(() => store.resetToIdle(), 5000);
+      } else {
+        store.setState("error");
+        store.setErrorMessage(result.message || "Command failed");
+      }
+    } catch (error) {
+      console.error("❌ Command execution failed:", error);
+      store.setState("error");
+      store.setErrorMessage("Cannot connect to PLUTO backend. Make sure it's running on port 8765.");
     }
   },
 
@@ -173,228 +294,32 @@ export const aiService = {
   },
 
   async confirmEmailSend(): Promise<void> {
-    const store = usePlutoStore.getState();
-    store.setActionPreview(null);
-    store.setState("executing");
-
-    const steps = store.executionSteps;
-    if (steps.length > 2) {
-      store.updateExecutionStep(steps[2].id, "current");
-      store.setCurrentTask("Dispatching email via SMTP gateway...");
-      await sleep(800);
-      store.updateExecutionStep(steps[2].id, "completed");
+    // For confirmation actions, send via WebSocket
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: "confirm",
+        action: "email_send"
+      }));
     }
-
-    store.setState("success");
-    store.setCurrentTask("Email successfully sent to owais@example.com");
-
-    store.addActivity({
-      id: `act-${Date.now()}`,
-      title: "Email Sent",
-      description: "Subject: Project Sync & Meeting to owais@example.com",
-      timestamp: "Just now",
-      status: "success",
-      category: "message"
-    });
-
-    await sleep(2500);
-    store.resetToIdle();
-  },
-
-  async runDeleteConfirmationPipeline(_command: string): Promise<void> {
-    const store = usePlutoStore.getState();
-
-    store.setState("planning");
-    const confirmData: ActionPreview = {
-      type: "file_delete",
-      title: "Confirm Dangerous Action",
-      content: "PLUTO wants to delete 24 temporary cache files in /home/user/.cache/pluto_temp.",
-      fileCount: 24,
-      path: "/home/user/.cache/pluto_temp",
-      requiresConfirmation: true
-    };
-    store.setConfirmationRequired(confirmData);
   },
 
   async confirmFileDelete(): Promise<void> {
-    const store = usePlutoStore.getState();
-    store.setConfirmationRequired(null);
-    store.setState("executing");
-
-    const steps: ExecutionStep[] = [
-      { id: "s1", label: "Scanning target directory", status: "completed" },
-      { id: "s2", label: "Executing safe unlinks on 24 files", status: "current" },
-      { id: "s3", label: "Reclaiming 1.4 GB disk space", status: "pending" }
-    ];
-    store.setExecutionSteps(steps);
-    store.setCurrentTask("Unlinking files...");
-    await sleep(800);
-
-    store.updateExecutionStep("s2", "completed");
-    store.updateExecutionStep("s3", "current");
-    store.setCurrentTask("Reclaiming disk space...");
-    await sleep(700);
-    store.updateExecutionStep("s3", "completed");
-
-    await tauriService.deleteFile("/home/user/.cache/pluto_temp");
-
-    store.setState("success");
-    store.setCurrentTask("Deleted 24 files safely");
-
-    store.addActivity({
-      id: `act-${Date.now()}`,
-      title: "Deleted 24 Cache Files",
-      description: "Reclaimed 1.4 GB storage in /home/user/.cache",
-      timestamp: "Just now",
-      status: "success",
-      category: "file"
-    });
-
-    await sleep(2500);
-    store.resetToIdle();
-  },
-
-  async runFolderPipeline(_command: string): Promise<void> {
-    const store = usePlutoStore.getState();
-
-    store.setState("planning");
-    const steps: ExecutionStep[] = [
-      { id: "s1", label: "Check permissions in ~/Projects", status: "pending" },
-      { id: "s2", label: "Create directory 'PLUTO'", status: "pending" },
-      { id: "s3", label: "Initialize git repo & project boilerplate", status: "pending" }
-    ];
-    store.setExecutionSteps(steps);
-    await sleep(600);
-
-    store.setState("executing");
-    for (let i = 0; i < steps.length; i++) {
-      store.updateExecutionStep(steps[i].id, "current");
-      store.setCurrentTask(steps[i].label);
-      await sleep(600);
-      store.updateExecutionStep(steps[i].id, "completed");
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: "confirm",
+        action: "file_delete"
+      }));
     }
-
-    await tauriService.createFolder("/home/user/Projects/PLUTO");
-
-    store.setState("success");
-    store.setCurrentTask("Folder created: ~/Projects/PLUTO");
-
-    store.addActivity({
-      id: `act-${Date.now()}`,
-      title: "Created Folder /Projects/PLUTO",
-      description: "Directory initialized and ready for development",
-      timestamp: "Just now",
-      status: "success",
-      category: "file"
-    });
-
-    await sleep(2500);
-    store.resetToIdle();
-  },
-
-  async runVSCodePipeline(_command: string): Promise<void> {
-    const store = usePlutoStore.getState();
-
-    store.setState("planning");
-    const steps: ExecutionStep[] = [
-      { id: "s1", label: "Locate VS Code executable", status: "pending" },
-      { id: "s2", label: "Open workspace ~/Projects/PLUTO", status: "pending" },
-      { id: "s3", label: "Restore active editor tabs", status: "pending" }
-    ];
-    store.setExecutionSteps(steps);
-    await sleep(600);
-
-    store.setState("executing");
-    for (let i = 0; i < steps.length; i++) {
-      store.updateExecutionStep(steps[i].id, "current");
-      store.setCurrentTask(steps[i].label);
-      await sleep(600);
-      store.updateExecutionStep(steps[i].id, "completed");
-    }
-
-    await tauriService.openApplication("Visual Studio Code");
-
-    store.setState("success");
-    store.setCurrentTask("VS Code launched with PLUTO workspace");
-
-    store.addActivity({
-      id: `act-${Date.now()}`,
-      title: "Launched VS Code",
-      description: "Opened workspace /home/user/Projects/PLUTO",
-      timestamp: "Just now",
-      status: "success",
-      category: "app"
-    });
-
-    await sleep(2500);
-    store.resetToIdle();
-  },
-
-  async runGenericPipeline(command: string): Promise<void> {
-    const store = usePlutoStore.getState();
-
-    store.setState("planning");
-    const steps: ExecutionStep[] = [
-      { id: "s1", label: `Formulate plan for: "${command}"`, status: "pending" },
-      { id: "s2", label: "Execute Linux system automation sequence", status: "pending" },
-      { id: "s3", label: "Verify execution results & OS output", status: "pending" }
-    ];
-    store.setExecutionSteps(steps);
-    await sleep(600);
-
-    store.setState("executing");
-    for (let i = 0; i < steps.length; i++) {
-      store.updateExecutionStep(steps[i].id, "current");
-      store.setCurrentTask(steps[i].label);
-      await sleep(700);
-      store.updateExecutionStep(steps[i].id, "completed");
-    }
-
-    store.setState("success");
-    store.setCurrentTask("Action completed successfully");
-
-    store.addActivity({
-      id: `act-${Date.now()}`,
-      title: `Executed: ${command.slice(0, 30)}...`,
-      description: "Linux system task completed without errors",
-      timestamp: "Just now",
-      status: "success",
-      category: "automation"
-    });
-
-    await sleep(2500);
-    store.resetToIdle();
-  },
-
-  async handleErrorSimulation(command: string): Promise<void> {
-    const store = usePlutoStore.getState();
-
-    store.setState("understanding");
-    await sleep(500);
-    store.setState("thinking");
-    await sleep(600);
-    store.setState("executing");
-
-    const steps: ExecutionStep[] = [
-      { id: "s1", label: "Connecting to target service", status: "completed" },
-      { id: "s2", label: "Attempting command execution", status: "error" }
-    ];
-    store.setExecutionSteps(steps);
-    store.setState("error");
-    store.setErrorMessage("Service unreachable: Target socket refused connection. Please ensure target process is running.");
-
-    store.addActivity({
-      id: `act-${Date.now()}`,
-      title: "Command Failed",
-      description: `Failed to execute "${command}": Connection refused`,
-      timestamp: "Just now",
-      status: "error",
-      category: "system"
-    });
   },
 
   cancelAction(): void {
     const store = usePlutoStore.getState();
     store.resetToIdle();
+    
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: "reset"
+      }));
+    }
   }
 };

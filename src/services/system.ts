@@ -1,5 +1,7 @@
 import { SystemMetrics } from "@/types";
 
+const BACKEND_URL = "http://127.0.0.1:8765";
+
 let currentMetrics: SystemMetrics = {
   cpu: 23,
   ram: 41,
@@ -11,8 +13,26 @@ let currentMetrics: SystemMetrics = {
 };
 
 export const systemService = {
-  getMetrics(): SystemMetrics {
-    // Add subtle real-time fluctuation
+  async getMetrics(): Promise<SystemMetrics> {
+    try {
+      // Try to fetch real metrics from backend
+      const response = await fetch(`${BACKEND_URL}/api/system/metrics`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const metrics = await response.json();
+        currentMetrics = metrics;
+        return metrics;
+      }
+    } catch (error) {
+      console.log("⚠️ Using mock metrics (backend not available)");
+    }
+
+    // Fallback: Add subtle fluctuation to mock data
     const cpuDelta = (Math.random() - 0.5) * 4;
     const ramDelta = (Math.random() - 0.5) * 2;
     
@@ -26,15 +46,25 @@ export const systemService = {
     return currentMetrics;
   },
 
-  getSystemInfo() {
+  async getSystemInfo() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/system/info`);
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (error) {
+      console.log("⚠️ Using mock system info");
+    }
+
+    // Fallback mock data
     return {
       os: "Linux x86_64",
       distro: "Ubuntu 26.04 LTS (PLUTO Kernel 6.12.4)",
       host: "PLUTO-DESKTOP-NEO",
       uptime: "4h 38m",
       securityStatus: "Encrypted & Isolated",
-      voiceEngine: "PLUTO Local Whisper-v3",
-      llmEngine: "PLUTO Quantum-1 70B (Local GPU)"
+      voiceEngine: "PLUTO ElevenLabs TTS",
+      llmEngine: "GPT-OSS Llama 3.3 70B"
     };
   }
 };

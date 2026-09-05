@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PlutoOrb } from "@/components/orb/PlutoOrb";
 import { CommandBar } from "@/components/command/CommandBar";
@@ -11,7 +11,9 @@ import { ActionPreviewCard } from "@/components/cards/ActionPreviewCard";
 import { ErrorCard } from "@/components/cards/ErrorCard";
 import { SystemOverview } from "@/components/system/SystemOverview";
 import { ActivityPanel } from "@/components/activity/ActivityPanel";
+import { ResponseDisplay } from "@/components/common/ResponseDisplay";
 import { usePlutoStore } from "@/store/plutoStore";
+import { aiService } from "@/services/ai";
 
 const productivityCardsList = [
   {
@@ -46,6 +48,12 @@ const productivityCardsList = [
 
 export default function HomePage() {
   const { state, actionPreview, errorMessage } = usePlutoStore();
+
+  // Connect to backend WebSocket on mount
+  useEffect(() => {
+    console.log("🚀 Connecting to PLUTO backend...");
+    aiService.connectWebSocket();
+  }, []);
 
   return (
     <AppShell rightPanel={<RightPanelContent />}>
@@ -94,6 +102,7 @@ function RightPanelContent() {
   return (
     <>
       <SystemOverview />
+      <ResponseDisplay />
       <ActivityPanel />
     </>
   );
