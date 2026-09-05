@@ -11,14 +11,10 @@ export function SystemOverview() {
   return (
     <div className="glass-panel p-5 rounded-2xl border border-white/10 space-y-5">
       <div>
-        <div className="flex items-center gap-2 text-xs font-mono text-[#ff3344] uppercase tracking-wider mb-1">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>System Overview</span>
-        </div>
-        <h3 className="text-lg font-light text-zinc-100 tracking-wide">
+        <h3 className="text-base font-normal text-zinc-100 mb-1">
           Good Afternoon, <span className="font-semibold text-white">Asim</span>
         </h3>
-        <p className="text-xs text-zinc-400 mt-1">
+        <p className="text-xs text-zinc-400">
           Ready to turn your ideas into actions.
         </p>
       </div>
