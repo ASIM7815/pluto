@@ -10,7 +10,7 @@ export function ResponseDisplay() {
 
   if (!aiResponse) return null;
 
-  const isVisible = state === "success" || state === "idle";
+  const isVisible = state === "success" || state === "idle" || state === "listening" || state === "speaking";
 
   return (
     <div 

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { GlassCard } from "@/components/cards/GlassCard";
 import { SystemOverview } from "@/components/system/SystemOverview";
@@ -12,7 +12,18 @@ import { aiService } from "@/services/ai";
 
 export default function SystemPage() {
   const metrics = useSystemStats(2000);
-  const sysInfo = systemService.getSystemInfo();
+  const [sysInfo, setSysInfo] = useState<any>({
+    os: "Linux",
+    distro: "Loading...",
+    host: "-",
+    uptime: "-",
+    voiceEngine: "PLUTO ElevenLabs TTS",
+    llmEngine: "GPT-OSS 120B",
+  });
+
+  useEffect(() => {
+    systemService.getSystemInfo().then(setSysInfo).catch(() => {});
+  }, []);
 
   return (
     <AppShell rightPanel={<SystemRightPanel />}>

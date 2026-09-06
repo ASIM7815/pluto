@@ -17,15 +17,12 @@ export function ConfirmationDialog({ data }: ConfirmationDialogProps) {
 
   const handleCancel = () => {
     store.setConfirmationRequired(null);
-    aiService.cancelAction();
+    aiService.rejectAction(data.type);
   };
 
   const handleConfirm = () => {
-    if (data.type === "file_delete") {
-      aiService.confirmFileDelete();
-    } else {
-      store.setConfirmationRequired(null);
-    }
+    store.setConfirmationRequired(null);
+    aiService.confirmAction(data.type);
   };
 
   return (

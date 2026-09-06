@@ -1,6 +1,6 @@
 import { SystemMetrics } from "@/types";
 
-const BACKEND_URL = "http://127.0.0.1:8765";
+const REST_BASE = "/api/backend";
 
 let currentMetrics: SystemMetrics = {
   cpu: 23,
@@ -16,7 +16,7 @@ export const systemService = {
   async getMetrics(): Promise<SystemMetrics> {
     try {
       // Try to fetch real metrics from backend
-      const response = await fetch(`${BACKEND_URL}/api/system/metrics`, {
+      const response = await fetch(`${REST_BASE}/system/metrics`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -48,7 +48,7 @@ export const systemService = {
 
   async getSystemInfo() {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/system/info`);
+      const response = await fetch(`${REST_BASE}/system/info`);
       if (response.ok) {
         return await response.json();
       }
