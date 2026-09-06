@@ -210,9 +210,22 @@ class BrowserManager:
         if not self._page:
             return False
         try:
-            if self._browser is not None and not self._browser.is_connected():
-                return False
-            # Accessing a live property raises once the page/context is gone.
+            # For persistent context
+            if self._context is not None:
+                # Check if context pages are accessible
+                try:
+                    pages = self._context.pages
+                    if not pages or self._page not in pages:
+                        return False
+                except Exception:  # noqa: BLE001
+                    return False
+            
+            # For regular browser
+            if self._browser is not None:
+                if not self._browser.is_connected():
+                    return False
+            
+            # Final check: try to access page URL (will throw if page is closed)
             _ = self._page.url
             return True
         except Exception:  # noqa: BLE001
@@ -254,10 +267,13 @@ class BrowserManager:
         if not _PLAYWRIGHT_AVAILABLE:
             return ToolResult.fail("browser", _MISSING_HINT, error_code="MISSING_DEPENDENCY")
 
-        # Reuse the live browser when possible.
-        if self._page and await self._is_browser_alive():
+        # Check if browser is alive - if not, force close and reopen
+        alive = await self._is_browser_alive()
+        if self._page and alive:
             return ToolResult.ok("browser", "ready")
-        logger.info("browser_closed_detected", action="reopening")
+        
+        # Browser is dead or never started - clean up and start fresh
+        logger.info("browser_not_alive", alive=alive, has_page=bool(self._page), action="reopening")
         await self._close_unlocked()
 
         try:
