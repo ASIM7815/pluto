@@ -718,6 +718,31 @@ class BrowserSnapshotTool(TerminalTool):
         return await browser_manager.snapshot()
 
 
+class CloseBrowserTool(TerminalTool):
+    name = "close_browser"
+    description = (
+        "Closes the PLUTO browser window and releases resources. "
+        "Use when the user says 'close browser', 'close Chrome', 'quit browser', etc."
+    )
+    safety_level = SafetyLevel.SAFE
+    category = "browser"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {"type": "object", "properties": {}, "required": []}
+
+    async def execute(self, **kwargs) -> ToolResult:
+        await browser_manager.close()
+        return ToolResult.ok(
+            "browser",
+            message="Browser closed.",
+            context_updates={
+                "current_browser": None,
+                "current_url": None,
+                "current_page_title": None,
+            },
+        )
+
+
 BROWSER_TOOLS: List[TerminalTool] = [
     OpenUrlTool(),
     BrowserSearchTool(),
@@ -726,4 +751,5 @@ BROWSER_TOOLS: List[TerminalTool] = [
     BrowserTypeTool(),
     BrowserFullscreenTool(),
     BrowserSnapshotTool(),
+    CloseBrowserTool(),
 ]

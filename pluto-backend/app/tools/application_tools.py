@@ -79,6 +79,44 @@ APP_MAPPINGS: Dict[str, str] = {
     # it here used to surprise users by launching the wrong browser.
 }
 
+# PWAs and websites that users might ask to "open" as apps but are actually
+# just websites that should be opened in the browser.
+KNOWN_WEBSITES: Dict[str, str] = {
+    "youtube": "https://www.youtube.com",
+    "gmail": "https://mail.google.com",
+    "google mail": "https://mail.google.com",
+    "google drive": "https://drive.google.com",
+    "drive": "https://drive.google.com",
+    "google docs": "https://docs.google.com",
+    "docs": "https://docs.google.com",
+    "google sheets": "https://docs.google.com/spreadsheets",
+    "sheets": "https://docs.google.com/spreadsheets",
+    "google slides": "https://docs.google.com/presentation",
+    "slides": "https://docs.google.com/presentation",
+    "github": "https://github.com",
+    "stackoverflow": "https://stackoverflow.com",
+    "stack overflow": "https://stackoverflow.com",
+    "reddit": "https://www.reddit.com",
+    "twitter": "https://twitter.com",
+    "x": "https://twitter.com",
+    "facebook": "https://www.facebook.com",
+    "instagram": "https://www.instagram.com",
+    "linkedin": "https://www.linkedin.com",
+    "amazon": "https://www.amazon.com",
+    "netflix": "https://www.netflix.com",
+    "spotify web": "https://open.spotify.com",
+    "whatsapp web": "https://web.whatsapp.com",
+    "chatgpt": "https://chat.openai.com",
+    "chat gpt": "https://chat.openai.com",
+    "openai": "https://openai.com",
+    "notion": "https://www.notion.so",
+    "figma": "https://www.figma.com",
+    "canva": "https://www.canva.com",
+    "trello": "https://trello.com",
+    "asana": "https://app.asana.com",
+    "miro": "https://miro.com",
+}
+
 # Executables that are terminal programs (safe without a graphical session).
 _TERMINAL_PROGRAMS = {"vim", "emacs", "htop", "top", "git", "bash", "zsh"}
 
@@ -122,11 +160,36 @@ class OpenApplicationTool(TerminalTool, VerificationMixin):
     async def execute(self, application: str, arguments: Optional[List[str]] = None, **kwargs) -> ToolResult:
         if not application or not str(application).strip():
             return ToolResult.fail(self.name, "No application name was provided.", error_code="BAD_ARGUMENTS")
+        
         app_name = str(application)
+        app_lower = app_name.lower().strip()
+        
+        # Check if this is a known website/PWA that should open in browser
+        if app_lower in KNOWN_WEBSITES:
+            url = KNOWN_WEBSITES[app_lower]
+            logger.info("routing_to_browser", app=app_name, url=url, reason="known_website")
+            # Import browser_manager to route to browser
+            from app.tools.browser import browser_manager
+            result = await browser_manager.navigate(url)
+            if result.success:
+                result.message = f"Opening {app_name} in browser: {url}"
+            return result
+        
         executable = resolve_executable(app_name)
         resolved = shutil.which(executable)
 
         if not resolved:
+            # Before failing, check if it might be a website we don't know about
+            # (e.g. user says "open example.com" as an app)
+            if "." in app_lower and " " not in app_lower:
+                logger.info("routing_to_browser", app=app_name, reason="looks_like_domain")
+                from app.tools.browser import browser_manager
+                url = app_lower if app_lower.startswith("http") else f"https://{app_lower}"
+                result = await browser_manager.navigate(url)
+                if result.success:
+                    result.message = f"Opening {app_name} in browser"
+                return result
+            
             return ToolResult.fail(
                 self.name,
                 f"'{app_name}' does not appear to be installed (no '{executable}' on PATH). "
