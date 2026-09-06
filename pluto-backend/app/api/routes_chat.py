@@ -28,7 +28,7 @@ from typing import List, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from app.agent.orchestrator import agent_orchestrator
+from app.agent.pattern_orchestrator import pattern_orchestrator as agent_orchestrator
 from app.agent.session_manager import session_manager
 from app.agent.state_machine import PlutoState
 from app.core.logging import get_logger

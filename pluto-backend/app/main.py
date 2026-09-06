@@ -16,23 +16,22 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: open/close shared async clients."""
-    from app.llm.gpt_oss import gpt_oss_client
     from app.voice.elevenlabs import elevenlabs_client
     from app.tools.browser import browser_manager
     from app.agent.context_manager import context_manager
 
     logger.info(
-        "pluto_starting",
+        "pluto_starting_pattern_mode",
         version="1.0.0",
         env=settings.pluto_env,
-        llm_mock=settings.pluto_llm_mock_mode,
+        mode="pattern-based (NO AI)",
         tts_mock=settings.pluto_tts_mock_mode,
         active_contexts=context_manager.get_stats()["active_sessions"],
     )
     yield
     # Shutdown: release resources gracefully.
     logger.info("pluto_shutdown")
-    await gpt_oss_client.close()
+    # No LLM client to close - we're pattern-based now!
     await elevenlabs_client.close()
     await browser_manager.close()
 
@@ -78,9 +77,10 @@ async def health_check():
     return {
         "status": "healthy",
         "agent": "PLUTO",
+        "mode": "pattern-based (NO AI)",
         "backend": "FastAPI",
         "environment": settings.pluto_env,
-        "llm_mock": settings.pluto_llm_mock_mode,
+        "cost": "$0 - 100% FREE",
         "tts_mock": settings.pluto_tts_mock_mode,
     }
 
