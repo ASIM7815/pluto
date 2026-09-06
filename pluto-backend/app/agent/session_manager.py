@@ -164,7 +164,7 @@ class SessionManager:
             ))
             return False
 
-        from app.agent.orchestrator import agent_orchestrator  # lazy import
+        from app.agent.pattern_orchestrator import pattern_orchestrator as agent_orchestrator  # lazy import
         session.running = True
         session.touch()
         session.current_task = asyncio.create_task(
