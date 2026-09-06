@@ -21,6 +21,13 @@ passlib[bcrypt]==1.7.4
 # Logging
 structlog==24.1.0
 
+# Browser Automation
+playwright==1.62.0
+
+# Voice/Audio
+gTTS==2.5.4
+pydub==0.25.1
+
 # Testing
 pytest==7.4.4
 pytest-asyncio==0.23.3
