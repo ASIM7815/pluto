@@ -26,6 +26,17 @@ logger = get_logger(__name__)
 
 MAX_FILE_READ_CHARS = 200_000  # cap content fed to the LLM
 
+# Desktop "open with default application" launchers, tried in order.
+_OPENERS = ("xdg-open", "gio", "exo-open")
+
+
+def _opener_command() -> Optional[List[str]]:
+    """Return the first installed desktop opener as an argv prefix."""
+    for opener in _OPENERS:
+        if command_exists(opener):
+            return [opener] if opener != "gio" else ["gio", "open"]
+    return None
+
 
 def _resolve_and_check(path: str) -> tuple[Optional[str], Optional[ToolResult]]:
     """Expand + validate a path against the sandbox.
@@ -71,10 +82,12 @@ class OpenFileTool(TerminalTool, VerificationMixin):
         if os.path.isdir(abs_path):
             return ToolResult.fail(self.name, f"Path is a folder, not a file: {path}", error_code="NOT_A_FILE")
 
-        if not command_exists("xdg-open"):
+        opener = _opener_command()
+        if opener is None:
             return ToolResult.fail(
                 self.name,
-                "xdg-open is not installed, so files cannot be opened with a default application.",
+                "No desktop opener is installed (tried xdg-open, gio, exo-open), "
+                "so files cannot be opened with a default application.",
                 error_code="MISSING_DEPENDENCY",
             )
         if not has_display():
@@ -82,7 +95,7 @@ class OpenFileTool(TerminalTool, VerificationMixin):
                 self.name, human_display_hint(), error_code="NO_DISPLAY"
             )
 
-        result = await self.run_command(["xdg-open", abs_path], check_exit_code=False)
+        result = await self.run_command(opener + [abs_path], check_exit_code=False)
         if not result.success:
             return ToolResult.fail(
                 self.name,
@@ -121,15 +134,22 @@ class OpenFolderTool(TerminalTool, VerificationMixin):
             return err
         if not os.path.isdir(abs_path):
             return ToolResult.fail(self.name, f"Folder not found: {path}", error_code="DIR_NOT_FOUND")
-        if not command_exists("xdg-open"):
-            return ToolResult.fail(self.name, "xdg-open is not installed.", error_code="MISSING_DEPENDENCY")
+        opener = _opener_command()
+        if opener is None:
+            return ToolResult.fail(
+                self.name,
+                "No desktop opener is installed (tried xdg-open, gio, exo-open).",
+                error_code="MISSING_DEPENDENCY",
+            )
         if not has_display():
             return ToolResult.fail(self.name, human_display_hint(), error_code="NO_DISPLAY")
 
-        result = await self.run_command(["xdg-open", abs_path], check_exit_code=False)
+        result = await self.run_command(opener + [abs_path], check_exit_code=False)
         if not result.success:
             return ToolResult.fail(
-                self.name, f"Could not open folder {path}.", error_code="OPEN_FAILED"
+                self.name,
+                f"Could not open folder {path}: {result.error or 'opener failed'}",
+                error_code="OPEN_FAILED",
             )
         return ToolResult.ok(
             self.name,

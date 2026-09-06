@@ -74,10 +74,12 @@ class Settings(BaseSettings):
     pluto_messaging_command: str = ""
 
     # ---- Filesystem Sandbox ----
-    pluto_allowed_paths: str = (
-        "/home/user/Desktop,/home/user/Documents,/home/user/Downloads,"
-        "/home/user/Projects,/home/user/pluto,/home/user/pluto/pluto-backend"
-    )
+    # Comma separated list of directories the file tools may touch. When empty,
+    # the sandbox defaults to the PLUTO user's home directory plus the standard
+    # XDG folders (Desktop/Documents/Downloads/Pictures/...), which is what a
+    # desktop assistant needs while still blocking /etc, /usr, other users'
+    # homes, etc. Set explicitly in .env to tighten or extend it.
+    pluto_allowed_paths: str = ""
 
     # ---- Permissions ----
     pluto_auto_approve_safe: bool = True
@@ -94,8 +96,16 @@ class Settings(BaseSettings):
 
     @property
     def allowed_paths_list(self) -> List[str]:
-        paths = [p.strip() for p in self.pluto_allowed_paths.split(",") if p.strip()]
-        return [os.path.expanduser(p) for p in paths]
+        """Expand the configured sandbox; empty config => dynamic home default."""
+        raw = (self.pluto_allowed_paths or "").strip()
+        if raw:
+            configured = [p.strip() for p in raw.split(",") if p.strip()]
+            return [os.path.expanduser(p) for p in configured]
+
+        home = os.path.expanduser("~")
+        folders = ["", "Desktop", "Documents", "Downloads", "Pictures",
+                   "Music", "Videos", "Projects", "Templates", "Public"]
+        return [os.path.join(home, f) if f else home for f in folders]
 
     class Config:
         env_file = ".env"

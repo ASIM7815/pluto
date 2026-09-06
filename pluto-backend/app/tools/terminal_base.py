@@ -107,18 +107,117 @@ def command_exists(name: str) -> bool:
 
 def has_display() -> bool:
     """Whether a graphical display is available (X11/Wayland)."""
-    if os.environ.get("WAYLAND_DISPLAY"):
-        return True
-    if os.environ.get("DISPLAY"):
-        return True
-    return False
+    return resolve_session_env() is not None
+
+
+def _list_x11_sockets() -> List[str]:
+    """Live X11 sockets under /tmp/.X11-unix (e.g. [':0', ':1'])."""
+    found: List[str] = []
+    try:
+        for name in os.listdir("/tmp/.X11-unix"):
+            if name.startswith("X") and name[1:].isdigit():
+                found.append(f":{int(name[1:])}")
+    except OSError:
+        pass
+    return sorted(found, key=lambda d: int(d[1:]))
+
+
+def _list_wayland_sockets() -> List[str]:
+    """Live Wayland sockets for this user in XDG_RUNTIME_DIR (wayland-N)."""
+    found: List[str] = []
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+    if runtime and os.path.isdir(runtime):
+        try:
+            for name in os.listdir(runtime):
+                if name.startswith("wayland-") and name[len("wayland-"):].isdigit():
+                    found.append(os.path.join(runtime, name))
+        except OSError:
+            pass
+    # Fall back to /run/user/<uid> when XDG_RUNTIME_DIR is not exported.
+    if not found:
+        try:
+            uid_runtime = f"/run/user/{os.getuid()}"
+            if os.path.isdir(uid_runtime):
+                for name in os.listdir(uid_runtime):
+                    if name.startswith("wayland-") and name[len("wayland-"):].isdigit():
+                        found.append(os.path.join(uid_runtime, name))
+        except OSError:
+            pass
+    return sorted(found)
+
+
+def resolve_session_env() -> Optional[Dict[str, str]]:
+    """Resolve the environment variables that reach the user's graphical session.
+
+    PLUTO (or its tools) is often started by a service manager, a different
+    shell, or a container, so ``DISPLAY``/``WAYLAND_DISPLAY`` may not be
+    inherited even though the user has a live desktop. Resolution order:
+
+    1. ``PLUTO_DISPLAY`` - explicit override for X11 (highest priority).
+    2. ``DISPLAY`` / ``WAYLAND_DISPLAY`` already in our environment.
+    3. Auto-discovery: live X11 sockets in ``/tmp/.X11-unix`` or Wayland
+       sockets in the user's runtime dir (same uid).
+
+    Returns a dict of extra environment variables to pass to child processes,
+    or ``None`` when no graphical session can be reached.
+    """
+    env: Dict[str, str] = {}
+
+    override = os.environ.get("PLUTO_DISPLAY", "").strip()
+    if override:
+        env["DISPLAY"] = override
+        xauth = os.path.expanduser("~/.Xauthority")
+        if os.path.isfile(xauth):
+            env["XAUTHORITY"] = xauth
+        return env
+
+    display = os.environ.get("DISPLAY", "").strip()
+    wayland = os.environ.get("WAYLAND_DISPLAY", "").strip()
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "").strip()
+    xdg_runtime_found = bool(runtime) or bool(_list_wayland_sockets())
+
+    if display:
+        env["DISPLAY"] = display
+    if wayland:
+        env["WAYLAND_DISPLAY"] = wayland
+    if runtime:
+        env["XDG_RUNTIME_DIR"] = runtime
+    elif xdg_runtime_found:
+        env["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
+
+    if env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
+        xauth = os.path.expanduser("~/.Xauthority")
+        if os.path.isfile(xauth) and "XAUTHORITY" not in env:
+            env["XAUTHORITY"] = xauth
+        return env
+
+    # Nothing exported -> look for a live session we can attach to.
+    x11 = _list_x11_sockets()
+    if x11:
+        # The highest-numbered display is normally the desktop session
+        # (Xvfb / x0vnc / Xwayland often grab lower numbers first).
+        env["DISPLAY"] = x11[-1]
+        xauth = os.path.expanduser("~/.Xauthority")
+        if os.path.isfile(xauth):
+            env["XAUTHORITY"] = xauth
+        return env
+
+    wayland_sockets = _list_wayland_sockets()
+    if wayland_sockets:
+        env["WAYLAND_DISPLAY"] = f"wayland-{os.path.basename(wayland_sockets[-1])}"
+        env["XDG_RUNTIME_DIR"] = os.path.dirname(wayland_sockets[-1])
+        return env
+
+    return None
 
 
 def human_display_hint() -> str:
-    """Explain why GUI operations may fail in headless environments."""
+    """Explain why GUI operations may fail and how to fix it."""
     return (
-        "No graphical display is available in this environment "
-        "(DISPLAY/WAYLAND_DISPLAY are not set)."
+        "No graphical display could be reached (DISPLAY/WAYLAND_DISPLAY are "
+        "not set and no live X11/Wayland socket was found for this user). "
+        "Start PLUTO inside your desktop session, or point it at the display "
+        "with PLUTO_DISPLAY (e.g. PLUTO_DISPLAY=:0)."
     )
 
 
