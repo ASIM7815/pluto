@@ -17,15 +17,12 @@ export function ActionPreviewCard({ preview }: ActionPreviewCardProps) {
 
   const handleCancel = () => {
     store.setActionPreview(null);
-    aiService.cancelAction();
+    aiService.rejectAction(preview.type);
   };
 
   const handleConfirm = () => {
-    if (preview.type === "email") {
-      aiService.confirmEmailSend();
-    } else {
-      store.setActionPreview(null);
-    }
+    aiService.confirmAction(preview.type);
+    store.setActionPreview(null);
   };
 
   return (

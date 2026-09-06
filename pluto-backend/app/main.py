@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
-from app.api import routes_chat, routes_voice, routes_system
+from app.api import routes_chat, routes_voice, routes_system, routes_tools
 
 # Configure logging
 configure_logging()
@@ -42,6 +42,7 @@ app.add_middleware(
 app.include_router(routes_chat.router)
 app.include_router(routes_voice.router)
 app.include_router(routes_system.router)
+app.include_router(routes_tools.router)
 
 
 @app.get("/")

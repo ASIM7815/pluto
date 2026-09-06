@@ -5,6 +5,7 @@ from app.tools.filesystem import filesystem_tools
 from app.tools.applications import application_tools
 from app.tools.system import system_tools
 from app.tools.terminal import terminal_tools
+from app.tools.browser import browser_tools
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -162,6 +163,66 @@ class ToolRegistry:
             category="terminal",
             handler=terminal_tools.execute_command
         )
+
+        # Browser automation
+        self.register_tool(
+            name="browser_navigate",
+            description="Navigate the browser to a URL (or open it)",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to navigate to"}
+                },
+                "required": ["url"]
+            },
+            permission_level="SAFE",
+            category="browser",
+            handler=browser_tools.navigate
+        )
+        self.register_tool(
+            name="browser_click",
+            description="Click an element on the current page",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "selector": {"type": "string", "description": "CSS selector (optional)"},
+                    "index": {"type": "integer", "description": "Index for results, default 0"}
+                }
+            },
+            permission_level="SAFE",
+            category="browser",
+            handler=browser_tools.click
+        )
+        self.register_tool(
+            name="browser_key",
+            description="Press a keyboard key in the browser (e.g. Enter, f for fullscreen)",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "Key to press"}
+                },
+                "required": ["key"]
+            },
+            permission_level="SAFE",
+            category="browser",
+            handler=browser_tools.press_key
+        )
+        self.register_tool(
+            name="browser_fullscreen",
+            description="Toggle fullscreen in the browser",
+            parameters={"type": "object", "properties": {}},
+            permission_level="SAFE",
+            category="browser",
+            handler=browser_tools.fullscreen
+        )
+        self.register_tool(
+            name="browser_snapshot",
+            description="Capture a snapshot of the current page",
+            parameters={"type": "object", "properties": {}},
+            permission_level="SAFE",
+            category="browser",
+            handler=browser_tools.snapshot
+        )
     
     def register_tool(
         self,
@@ -225,6 +286,19 @@ class ToolRegistry:
         if tool_name in self.tools:
             return self.tools[tool_name]["definition"].permission_level
         return "BLOCKED"
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """Return tool metadata for the /api/tools endpoint."""
+        return [
+            {
+                "name": name,
+                "description": data["definition"].description,
+                "permission_level": data["definition"].permission_level,
+                "category": data["definition"].category,
+                "parameters": data["definition"].parameters.get("properties", {}),
+            }
+            for name, data in self.tools.items()
+        ]
 
 
 # Singleton instance

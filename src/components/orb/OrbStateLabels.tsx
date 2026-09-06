@@ -14,7 +14,10 @@ export function OrbStateLabels({ state }: OrbStateLabelsProps) {
     { id: "understanding", label: "UNDERSTANDING" },
     { id: "thinking", label: "THINKING" },
     { id: "planning", label: "PLANNING" },
-    { id: "executing", label: "EXECUTING" }
+    { id: "executing", label: "EXECUTING" },
+    { id: "observing", label: "OBSERVING" },
+    { id: "reasoning", label: "REASONING" },
+    { id: "speaking", label: "SPEAKING" }
   ];
 
   return (

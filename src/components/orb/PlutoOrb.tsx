@@ -28,20 +28,20 @@ export function PlutoOrb({ state, size = 420 }: PlutoOrbProps) {
       >
         <iframe
           title="A Windy Day"
-          frameBorder="0"
-          allowFullScreen
-          mozallowfullscreen="true"
-          webkitallowfullscreen="true"
-          allow="autoplay; fullscreen; xr-spatial-tracking"
-          xr-spatial-tracking="true"
-          execution-while-out-of-viewport="true"
-          execution-while-not-rendered="true"
-          web-share="true"
-          src="https://sketchfab.com/models/fb78f4cc938144e6902dd5cff354d525/embed?ui_animations=0&ui_stop=0&ui_inspector=0&ui_hint=0&ui_ar=0&ui_help=0&ui_settings=0&ui_vr=0&ui_fullscreen=0&ui_annotations=0&dnt=1&autostart=1&transparent=1&ui_infos=0&ui_controls=1&ui_watermark=0&ui_theme=dark"
           className="w-full h-full rounded-lg"
-          style={{
-            border: 'none',
-          }}
+          style={{ border: "none" }}
+          {...({
+            frameBorder: "0",
+            allowFullScreen: true,
+            mozallowfullscreen: "true",
+            webkitallowfullscreen: "true",
+            allow: "autoplay; fullscreen; xr-spatial-tracking",
+            "xr-spatial-tracking": "true",
+            "execution-while-out-of-viewport": "true",
+            "execution-while-not-rendered": "true",
+            "web-share": "true",
+            src: "https://sketchfab.com/models/fb78f4cc938144e6902dd5cff354d525/embed?ui_animations=0&ui_stop=0&ui_inspector=0&ui_hint=0&ui_ar=0&ui_help=0&ui_settings=0&ui_vr=0&ui_fullscreen=0&ui_annotations=0&dnt=1&autostart=1&transparent=1&ui_infos=0&ui_controls=1&ui_watermark=0&ui_theme=dark",
+          } as any)}
         />
       </div>
     </div>

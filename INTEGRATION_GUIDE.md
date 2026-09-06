@@ -1,272 +1,80 @@
-# PLUTO Frontend ↔ Backend Integration Guide
+# 🔌 PLUTO Frontend ↔ Backend Integration Guide
 
-## 🎯 Quick Start
+The frontend talks to the backend through a Next.js **rewrite proxy** so it
+always uses **relative URLs** (`/api/backend/*`) — no hardcoded `127.0.0.1`.
 
-### 1. Start Backend (Terminal 1)
-
-```bash
-cd pluto-backend
-chmod +x start.sh
-./start.sh
-```
-
-Backend will run on **http://127.0.0.1:8765**
-
-### 2. Start Frontend (Terminal 2)
-
-```bash
-cd ../  # Back to project root
-npm run dev
-```
-
-Frontend will run on **http://localhost:3001**
-
----
-
-## 🔌 Connecting Frontend to Backend
-
-The existing frontend needs minimal changes to connect to the Python backend. Here's what to modify:
-
-### Update `src/services/ai.ts`
-
-Replace the mock `aiService.executeCommand()` with real WebSocket connection:
-
-```typescript
-// src/services/ai.ts
-export const aiService = {
-  ws: null as WebSocket | null,
-
-  connect() {
-    this.ws = new WebSocket('ws://127.0.0.1:8765/api/chat/ws');
-    
-    this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      const store = usePlutoStore.getState();
-      
-      // Handle different event types
-      switch (data.type) {
-        case 'agent_state':
-          store.setState(data.state);
-          if (data.task) store.setCurrentTask(data.task);
-          if (data.error) store.setErrorMessage(data.error);
-          break;
-          
-        case 'execution_step':
-          // Update execution steps
-          break;
-          
-        case 'activity':
-          store.addActivity(data.activity);
-          break;
-          
-        case 'action_preview':
-          store.setActionPreview(data.preview);
-          break;
-      }
-    };
-  },
-
-  async executeCommand(command: string) {
-    if (!this.ws) this.connect();
-    
-    this.ws.send(JSON.stringify({
-      type: 'command',
-      command: command
-    }));
-  }
-};
-```
-
-### Update `src/services/voice.ts`
-
-Connect to backend TTS:
-
-```typescript
-export const voiceService = {
-  async synthesizeSpeech(text: string): Promise<void> {
-    const response = await fetch('http://127.0.0.1:8765/api/voice/synthesize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-    
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    await audio.play();
-  }
-};
-```
-
-### Update `src/services/system.ts`
-
-Fetch real system metrics:
-
-```typescript
-export const systemService = {
-  async getMetrics(): Promise<SystemMetrics> {
-    const response = await fetch('http://127.0.0.1:8765/api/system/metrics');
-    return await response.json();
-  },
-
-  async getSystemInfo() {
-    const response = await fetch('http://127.0.0.1:8765/api/system/info');
-    return await response.json();
-  }
-};
+```ts
+// next.config.ts — proxies /api/backend/* -> http://127.0.0.1:8765/api/*
+async rewrites() {
+  return [{ source: "/api/backend/:path*", destination: "http://127.0.0.1:8765/api/:path*" }];
+}
 ```
 
 ---
 
-## 🧪 Testing the Integration
+## 🗂 Services
 
-### Test 1: System Metrics
+### `src/services/ai.ts`
+The WebSocket client (the core bridge). Connects to relative
+`/api/backend/chat/ws`, sends `{ type: "command", command }`, and maps incoming
+events to `plutoStore`:
 
-Visit http://localhost:3001 - the system metrics (CPU, RAM, Storage) should show real values.
+| Backend event | Frontend action |
+|---------------|-----------------|
+| `agent_state` | sets state (`listening`, `observing`, `reasoning`, `speaking`, …) + current task |
+| `execution_step` | updates the step list (pending → current → completed) |
+| `activity` | prepends to the activity timeline |
+| `action_preview` | shows a confirmation / preview dialog |
+| `speak` | plays ElevenLabs audio **or** browser TTS, then returns to LISTENING |
+| `error` | shows the error card |
 
-### Test 2: Simple Command
+### `src/services/voice.ts`
+Speech-to-text via the **Web Speech API** (`webkitSpeechRecognition`) when
+available, with a simulated-typing fallback for browsers/iframes without mic
+access. Also calls the backend `/api/backend/voice/synthesize` for TTS.
 
-Type in command bar:
-```
-Open VS Code
-```
+### `src/services/tts.ts`
+`speak(text, audioBase64?)` — plays ElevenLabs audio when present, otherwise
+uses `window.speechSynthesis`. On finish it sets the UI back to **LISTENING**
+(continuous loop). `cancelSpeech()` stops any in-flight utterance.
 
-Expected flow:
-1. Frontend sends via WebSocket
-2. Backend: UNDERSTANDING → THINKING → PLANNING → EXECUTING
-3. VS Code launches
-4. Activity logged
-5. Frontend returns to IDLE
-
-### Test 3: File Operation
-
-```
-Create a file called test.txt in ~/Projects
-```
-
-Expected:
-- File created
-- Success state
-- Activity shows "File created"
-
-### Test 4: Dangerous Command (Confirmation)
-
-```
-Delete my cache files
-```
-
-Expected:
-- Confirmation dialog appears
-- User must approve
-- Then execution proceeds
+### `src/services/system.ts`
+Fetches real metrics from `/api/backend/system/metrics` and `/api/backend/system/info`,
+falling back to mock data when the backend is unreachable.
 
 ---
 
-## 📡 WebSocket Event Flow
+## 📡 WebSocket Protocol
 
+Client → Server (JSON):
+
+```jsonc
+{ "type": "command",   "command": "Open YouTube" }
+{ "type": "confirm",   "action": "delete_file" }
+{ "type": "reject",    "action": "delete_file" }
+{ "type": "interrupt" }
+{ "type": "reset",     "clearHistory": true }
 ```
-FRONTEND                    BACKEND                  
-   │                           │
-   ├─ command ────────────────>│
-   │                           ├─ GPT-OSS
-   │                           │
-   │<──── agent_state ─────────┤ (understanding)
-   │<──── agent_state ─────────┤ (thinking)
-   │<──── agent_state ─────────┤ (planning)
-   │<──── execution_step ──────┤
-   │<──── agent_state ─────────┤ (executing)
-   │                           ├─ Execute Tool
-   │<──── execution_step ──────┤ (completed)
-   │<──── agent_state ─────────┤ (success)
-   │<──── activity ────────────┤
-   │                           │
+
+Server → Client (JSON):
+
+```jsonc
+{ "type": "agent_state",     "state": "planning", "task": "Planning 1 action(s)..." }
+{ "type": "execution_step",  "step": { "id": "s1", "label": "Open YouTube", "status": "current" } }
+{ "type": "activity",        "activity": { "title": "Opened YouTube", "status": "success", "category": "app" } }
+{ "type": "action_preview",  "preview": { "title": "Confirm File Deletion", "requiresConfirmation": true } }
+{ "type": "speak",           "text": "I've opened YouTube.", "audio": null, "tts": "browser" }
+{ "type": "agent_state",     "state": "listening", "task": "Ready for your next command." }
 ```
 
 ---
 
-## 🛠️ Available Backend APIs
+## 🧪 Manual Test
 
-### REST Endpoints
+1. `cd pluto-backend && ./start.sh`
+2. `npm run dev` (from repo root)
+3. Open http://localhost:3000, press the mic or type a command.
+4. Confirm the orb HUD cycles through the loop and PLUTO speaks, then returns
+   to LISTENING. Chain another command.
 
-```
-GET  /health                       # Health check
-GET  /api/system/metrics           # System metrics
-GET  /api/system/info              # System info
-POST /api/chat/execute             # Execute command (non-streaming)
-POST /api/voice/synthesize         # Text-to-speech
-GET  /api/voice/voices             # List voices
-POST /api/chat/reset               # Reset agent
-```
-
-### WebSocket
-
-```
-WS /api/chat/ws                    # Real-time agent communication
-```
-
----
-
-## 🔐 Security Notes
-
-✅ **Backend binds to 127.0.0.1** - Only local access  
-✅ **CORS configured** for localhost:3000 and localhost:3001  
-✅ **No API keys exposed** to frontend  
-✅ **Tool permissions** enforced server-side  
-✅ **Path validation** prevents traversal attacks  
-✅ **Command classification** blocks dangerous operations  
-
----
-
-## 🐛 Troubleshooting
-
-### WebSocket connection failed
-
-**Check:**
-- Backend is running: `curl http://127.0.0.1:8765/health`
-- CORS origins in `.env` include your frontend URL
-- No firewall blocking port 8765
-
-### Commands not executing
-
-**Check:**
-- WebSocket connected (check browser console)
-- Backend logs: `tail -f pluto-backend/logs/*.log`
-- API keys valid in `.env`
-
-### Voice not working
-
-**Check:**
-- ElevenLabs API key valid
-- Voice ID correct (Indian girl voice: `pNInz6obpgDQGcFmaJgB`)
-- Audio playback permissions in browser
-
-### Tools failing
-
-**Check:**
-- `PLUTO_ALLOWED_PATHS` includes target directory
-- File permissions
-- Application exists (`which code`, `which firefox`, etc.)
-
----
-
-## 📈 Next Steps
-
-1. ✅ Backend running
-2. ✅ Frontend connected
-3. 🔄 Update frontend services to use WebSocket
-4. 🧪 Test each command type
-5. 🎨 Fine-tune UI based on backend events
-6. 🚀 Deploy
-
----
-
-## 📚 Additional Resources
-
-- FastAPI Docs: https://fastapi.tiangolo.com
-- WebSocket Guide: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
-- Groq API: https://console.groq.com
-- ElevenLabs API: https://elevenlabs.io/docs
-
----
-
-**PLUTO** - AI that actually controls your computer 🎯
+**PLUTO keeps talking and stays ready — command after command. 🎯**

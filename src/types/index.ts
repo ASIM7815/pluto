@@ -5,6 +5,9 @@ export type PlutoState =
   | "thinking"
   | "planning"
   | "executing"
+  | "observing"
+  | "reasoning"
+  | "speaking"
   | "success"
   | "error";
 
@@ -60,4 +63,11 @@ export interface ProductivityCardItem {
   description: string;
   iconName: string;
   actionCommand: string;
+}
+
+export interface SpeakEvent {
+  type: "speak";
+  text: string;
+  audio?: string | null; // base64-encoded audio bytes, or null => use browser TTS
+  tts: "elevenlabs" | "browser";
 }

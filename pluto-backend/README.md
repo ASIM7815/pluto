@@ -1,229 +1,82 @@
-# PLUTO Backend - Python FastAPI Agent
+# PLUTO Backend — Python FastAPI Agent
 
-🤖 **PLUTO** is a futuristic AI desktop assistant that controls your Linux computer through natural language using GPT-OSS (Groq), ElevenLabs voice, and a secure Python backend.
-
-## Architecture
+🤖 The **brain & control system** of PLUTO. Runs the autonomous
+**Listen → Understand → Plan → Act → Observe → Reason → Speak → Listen** loop.
 
 ```
-Frontend (Next.js) ←→ Backend (FastAPI) ←→ GPT-OSS / ElevenLabs
-                            ↓
-                       Tool Registry
-                            ↓
-                    OS Tools (Linux)
+Frontend (Next.js) ←WebSocket/REST→ FastAPI ←GPT-OSS 120B/Tools/voice→ ElevenLabs
+                                     ↓
+                          Agent Orchestrator (the loop)
+                                     ↓
+                        Tool Registry (permission-gated)
+                                     ↓
+             OS Tools: fs | apps | system | terminal | browser
 ```
 
-## Prerequisites
-
-- **Python 3.12+**
-- **Linux OS** (Ubuntu/Debian recommended)
-- **GPT-OSS API Key** (Groq)
-- **ElevenLabs API Key**
-
-## Installation
-
-### 1. Create Virtual Environment
+## Run
 
 ```bash
 cd pluto-backend
-python3 -m venv venv
-source venv/bin/activate  # On Linux/Mac
-```
-
-### 2. Install Dependencies
-
-```bash
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env        # add GPT_OSS_API_KEY / ELEVENLABS_API_KEY (optional)
+python -m app.main          # or: uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
-### 3. Configure Environment
+> **Mock mode** — with empty API keys the GPT-OSS planner is deterministic and
+> speech falls back to the browser's `speechSynthesis`. The loop runs end-to-end
+> with no credentials.
 
-Copy `.env.example` to `.env` and fill in your API keys:
+## Architecture (`app/`)
 
-```bash
-cp .env.example .env
-nano .env  # or use any editor
+| Path | Responsibility |
+|------|----------------|
+| `main.py` | FastAPI app, CORS, routers, `/health`. |
+| `api/routes_chat.py` | **WebSocket hub** — receives `command`/`confirm`/`reject`/`interrupt`/`reset`, streams events back. REST fallbacks. |
+| `api/routes_system.py` | Read-only metrics / info / status. |
+| `api/routes_voice.py` | `/synthesize`, `/voices`. |
+| `api/routes_tools.py` | Tool introspection (`/api/tools`). |
+| `agent/orchestrator.py` | **The brain loop** — Understand → Plan → Act → Observe → Reason → Speak → Listen. |
+| `agent/session_manager.py` | Per-connection state: event queue, history, confirmation gate, interrupt. |
+| `agent/tool_registry.py` | Tool catalogue + LLM function schema + permission metadata. |
+| `llm/gpt_oss.py` | GPT-OSS 120B client (`openai/gpt-oss-120b`) + deterministic mock planner. |
+| `voice/elevenlabs.py` | ElevenLabs TTS + mock (returns browser-TTS signal when no key). |
+| `voice/stt.py` | Speech-to-text stub (server-side STT hook). |
+| `tools/...` | `filesystem`, `applications`, `system`, `terminal`, `browser` tools. |
+| `core/config.py` | `Settings` (env-driven), allowed paths, CORS, mock flags. |
+| `core/security.py` | Path sandbox, command classification (`SAFE`/`CONFIRM_REQUIRED`/`BLOCKED`). |
+| `schemas/` | Pydantic models for events, requests, results. |
+
+## Tools
+
+Filesystem: `create_file`, `read_file`, `list_directory`, `create_directory`,
+`delete_file` *(confirm)* · Applications: `open_application`, `open_url` ·
+System: `get_processes` · Terminal: `execute_command` *(confirm)* ·
+Browser: `browser_navigate`, `browser_click`, `browser_key`,
+`browser_fullscreen`, `browser_snapshot`.
+
+## WebSocket Events (server → client)
+
+```jsonc
+{ "type": "agent_state",    "state": "executing", "task": "Executing open_url..." }
+{ "type": "execution_step", "step": { "id": "s1", "label": "Open YouTube", "status": "current" } }
+{ "type": "activity",       "activity": { "title": "Opened YouTube", "status": "success", "category": "app" } }
+{ "type": "action_preview", "preview": { "requiresConfirmation": true } }
+{ "type": "speak",          "text": "I've opened YouTube.", "audio": "<base64|null>", "tts": "browser" }
+{ "type": "agent_state",    "state": "listening", "task": "Ready for your next command." }
 ```
 
-**Required Configuration:**
-- `GPT_OSS_API_KEY` - Your Groq API key
-- `ELEVENLABS_API_KEY` - Your ElevenLabs API key
-- `ELEVENLABS_VOICE_ID` - Voice ID (default: Indian girl voice)
-- `PLUTO_ALLOWED_PATHS` - Comma-separated allowed directories
+## Security
 
-### 4. Run Backend
+- Filesystem sandboxed to `PLUTO_ALLOWED_PATHS`; traversal & system dirs blocked.
+- Terminal commands classified `SAFE` / `CONFIRM_REQUIRED` / `BLOCKED`.
+- Permission gates pause on dangerous tools until the user confirms.
+- API keys live only in `.env`; never exposed to the browser.
 
-```bash
-python -m app.main
-```
-
-Or using uvicorn directly:
-
-```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload
-```
-
-The backend will start on **http://127.0.0.1:8765**
-
-## Frontend Integration
-
-Make sure your Next.js frontend is configured to connect to the backend:
-
-```bash
-cd ../  # Go to frontend directory
-npm run dev
-```
-
-Frontend should be on **http://localhost:3000** or **http://localhost:3001**
-
-## API Endpoints
-
-### Chat & Commands
-- `POST /api/chat/execute` - Execute a command
-- `WS /api/chat/ws` - WebSocket for real-time events
-- `POST /api/chat/reset` - Reset agent conversation
-
-### Voice
-- `POST /api/voice/synthesize` - Text-to-speech
-- `GET /api/voice/voices` - List available voices
-
-### System
-- `GET /api/system/metrics` - System metrics (CPU, RAM, etc.)
-- `GET /api/system/info` - System information
-- `GET /api/system/status` - Health check
-
-## Available Tools
-
-The agent has access to these OS capabilities:
-
-### Filesystem
-- `create_file` - Create new file
-- `read_file` - Read file content
-- `list_directory` - List directory contents
-- `create_directory` - Create directory
-- `delete_file` - Delete file (requires confirmation)
-
-### Applications
-- `open_application` - Launch applications (VS Code, Firefox, etc.)
-- `open_url` - Open URL in browser
-
-### System
-- `get_processes` - List running processes
-- `execute_command` - Run terminal commands (requires confirmation)
-
-## Security Features
-
-✅ **Path Validation** - Prevents path traversal attacks  
-✅ **Sandbox Filesystem** - Only allowed directories accessible  
-✅ **Command Classification** - SAFE/CONFIRM_REQUIRED/BLOCKED  
-✅ **Permission System** - Tool-level authorization  
-✅ **No Direct Code Execution** - LLM cannot run arbitrary Python  
-✅ **Structured Logging** - All operations logged  
-✅ **Local-First** - Binds to 127.0.0.1 by default  
-
-## Agent States
-
-The agent communicates these states to frontend:
-
-- `idle` - Ready for commands
-- `listening` - Receiving voice input
-- `understanding` - Parsing request
-- `thinking` - Analyzing with GPT-OSS
-- `planning` - Selecting tools
-- `executing` - Running OS tools
-- `success` - Task completed
-- `error` - Something went wrong
-
-## Testing
+## Tests
 
 ```bash
 pytest tests/
 ```
 
-## Development
-
-### Project Structure
-
-```
-pluto-backend/
-├── app/
-│   ├── main.py              # FastAPI app
-│   ├── api/                 # API routes
-│   │   ├── routes_chat.py
-│   │   ├── routes_voice.py
-│   │   └── routes_system.py
-│   ├── core/                # Core utilities
-│   │   ├── config.py
-│   │   ├── security.py
-│   │   └── logging.py
-│   ├── agent/               # Agent logic
-│   │   ├── orchestrator.py
-│   │   └── tool_registry.py
-│   ├── llm/                 # LLM clients
-│   │   └── gpt_oss.py
-│   ├── voice/               # Voice clients
-│   │   └── elevenlabs.py
-│   ├── tools/               # OS tools
-│   │   ├── filesystem.py
-│   │   ├── applications.py
-│   │   ├── system.py
-│   │   └── terminal.py
-│   └── schemas/             # Pydantic models
-│       ├── chat.py
-│       ├── tools.py
-│       └── system.py
-├── tests/
-├── requirements.txt
-├── .env
-└── README.md
-```
-
-### Adding a New Tool
-
-1. **Create tool function** in appropriate file (e.g., `tools/custom.py`)
-2. **Register in tool_registry.py**:
-
-```python
-tool_registry.register_tool(
-    name="my_tool",
-    description="What this tool does",
-    parameters={...},  # JSON schema
-    permission_level="SAFE",  # or "CONFIRM_REQUIRED"
-    category="system",
-    handler=my_tool_function
-)
-```
-
-3. Tool is now available to the agent!
-
-## Troubleshooting
-
-### Backend won't start
-- Check Python version: `python3 --version` (need 3.12+)
-- Verify API keys in `.env`
-- Check port 8765 is not in use: `lsof -i :8765`
-
-### Tools not executing
-- Check `PLUTO_ALLOWED_PATHS` includes target directory
-- Review logs for permission errors
-- Verify command classification in `core/security.py`
-
-### Frontend can't connect
-- Verify backend is running on 127.0.0.1:8765
-- Check CORS origins in `.env` match frontend URL
-- Test endpoint: `curl http://127.0.0.1:8765/health`
-
-## License
-
-MIT
-
-## Credits
-
-Built with:
-- **FastAPI** - Modern Python web framework
-- **GPT-OSS (Groq)** - Llama 3.3 70B LLM
-- **ElevenLabs** - Natural voice synthesis
-- **psutil** - System monitoring
-
----
-
-**PLUTO** - Your AI-powered Linux desktop companion 🚀
+Built with FastAPI, GPT-OSS 120B, ElevenLabs and psutil. 🚀
