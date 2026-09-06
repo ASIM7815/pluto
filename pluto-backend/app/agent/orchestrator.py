@@ -303,6 +303,7 @@ Respond naturally and helpfully."""
         ]
 
         tools = self._registry.get_tool_schemas()
+        context_snapshot = context_manager.get_context_snapshot(session_id) or {}
 
         await emit(PlutoState.UNDERSTANDING, "Parsing your request...")
 
@@ -323,7 +324,7 @@ Respond naturally and helpfully."""
                     reason="llm_start",
                 )
 
-                response = await gpt_oss_client.chat(messages, tools)
+                response = await gpt_oss_client.chat(messages, tools, context=context_snapshot)
 
                 if response.finish_reason == "error":
                     raise RuntimeError(
@@ -379,8 +380,11 @@ Respond naturally and helpfully."""
                         ))
                         break
 
-                    # Safety gate (unified registry refuses DANGEROUS itself)
-                    if tool.safety_level == SafetyLevel.CONFIRM_REQUIRED:
+                    # Safety gate (unified registry refuses DANGEROUS itself).
+                    # Terminal commands are classified individually: SAFE
+                    # commands run straight away, CONFIRM_REQUIRED ones pause
+                    # for the user, BLOCKED ones are refused by the tool.
+                    if self._requires_confirmation(tc, tool):
                         ok = await self._await_confirmation(push, session, tc)
                         if not ok:
                             cancelled = True
@@ -580,6 +584,33 @@ Respond naturally and helpfully."""
     # ==================================================================
     # Confirmation gate
     # ==================================================================
+    @staticmethod
+    def _classify_terminal_command(arguments: Dict[str, Any]) -> str:
+        """Safety classification for one execute_command request."""
+        from app.core.security import security_validator
+
+        command = str((arguments or {}).get("command", "")).strip()
+        if not command:
+            return "SAFE"
+        try:
+            return security_validator.classify_command(command)
+        except Exception:  # noqa: BLE001
+            return "CONFIRM_REQUIRED"
+
+    @classmethod
+    def _requires_confirmation(cls, tc: LLMToolCall, tool) -> bool:
+        """Whether a planned tool call must pause for the user's approval.
+
+        Most CONFIRM_REQUIRED tools always ask. Terminal commands are the
+        exception: the *command* is classified, so `run ls -la` executes while
+        `rm -rf ~/x` asks first (and `rm -rf /` is refused outright).
+        """
+        if tool.safety_level != SafetyLevel.CONFIRM_REQUIRED:
+            return False
+        if tc.name == "execute_command":
+            return cls._classify_terminal_command(tc.arguments) == "CONFIRM_REQUIRED"
+        return True
+
     async def _await_confirmation(
         self, push, session: Session, tc: LLMToolCall
     ) -> bool:

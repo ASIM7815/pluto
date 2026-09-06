@@ -269,7 +269,28 @@ class CloseApplicationTool(TerminalTool, VerificationMixin):
         executable = resolve_executable(str(application))
         proc_name = os.path.basename(executable)
 
+        # If the "application" is actually the browser PLUTO itself is driving
+        # (open_url/browser_search), close it through the browser manager so
+        # the Playwright session is released cleanly, not just SIGKILLed.
+        from app.tools.browser import browser_manager
+
+        managed_browser_closed = False
+        if (
+            browser_manager.is_running
+            and browser_manager.executable_basename
+            and browser_manager.executable_basename == proc_name
+        ):
+            await browser_manager.close()
+            managed_browser_closed = True
+
         if not await self.check_process_running(proc_name):
+            if managed_browser_closed:
+                return ToolResult.ok(
+                    self.name, message=f"Closed {application}.",
+                    data={"was_running": True, "source": "browser_manager"},
+                    verification_passed=True,
+                    context_updates={"current_app": None, "current_browser": None},
+                )
             return ToolResult.ok(
                 self.name, message=f"{application} is not running.", data={"was_running": False}
             )

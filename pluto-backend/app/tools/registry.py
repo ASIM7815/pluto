@@ -216,72 +216,18 @@ class ToolRegistry:
         ]
 
     def get_recommended_tools(self, intent: str, context: Optional[Dict[str, Any]] = None) -> List[str]:
-        """Simple keyword-based recommendations (used by /intent/analyze)."""
-        text = (intent or "").lower()
-        words = f" {text} "
-        recommended: List[str] = []
+        """Intent-based tool recommendations (used by /intent/analyze).
 
-        has_web = any(k in text for k in ("youtube", "website", "web", "url", "site", "search", "google", "video"))
-        has_chat = any(k in text for k in ("whatsapp", "telegram", "message", "signal"))
+        Delegates to the same NLU router the offline planner uses, so the
+        "recommended tools" a client sees are exactly the tools that would run.
+        """
+        try:
+            from app.agent.nlu import intent_planner
 
-        # Context: continuing the current app/browser
-        context = context or {}
-        current_url = context.get("current_url") or ""
-        current_app = context.get("current_app") or ""
-
-        if has_web:
-            if "search" in text or "google" in text or "youtube" in text:
-                recommended.append("browser_search")
-            else:
-                recommended.append("open_url")
-        elif "second video" in text or "next video" in text or "click" in text or "play the" in text:
-            recommended.append("browser_click")
-        elif has_chat:
-            recommended.append("send_message")
-
-        if any(k in words for k in (" open ", " launch ", " start ", "open_application")):
-            recommended.append("open_application")
-        if any(k in words for k in (" close ", " quit ", " exit ", " terminate ")):
-            recommended.append("close_application")
-        if any(k in text for k in ("switch to", "focus on", "bring up", "activate app")):
-            recommended.append("switch_to_application")
-        if any(k in text for k in (
-            "apps are running", "applications are running", "running apps",
-            "running applications", "open apps",
-        )):
-            recommended.append("list_running_applications")
-        if any(k in words for k in ("find ", "search for", " locate ")) and any(
-            k in text for k in ("file", "document", "folder")
-        ):
-            recommended.append("find_files")
-        if "folder" in text and any(k in text for k in ("create", "make", "new")):
-            recommended.append("create_folder")
-        if any(k in text for k in ("create file", "make a file", "write a file")):
-            recommended.append("create_file")
-        if any(k in text for k in ("move ", "rename ")) and "file" in text:
-            recommended.append("move_file")
-        if any(k in text for k in ("copy ", "duplicate")) and "file" in text:
-            recommended.append("copy_file")
-        if any(k in text for k in ("delete ", "remove ")) and any(k in text for k in ("file", "folder", "cache")):
-            recommended.append("delete_file")
-        if any(k in text for k in ("screenshot", "capture screen", "snapshot screen")):
-            recommended.append("take_screenshot")
-        if any(k in text for k in ("volume", "sound", "mute", "unmute")):
-            recommended.append("set_volume")
-        if "clipboard" in text and any(k in text for k in ("copy", "put")):
-            recommended.append("copy_to_clipboard")
-        if "clipboard" in text and any(k in text for k in ("get", "read", "what")):
-            recommended.append("get_clipboard")
-        if any(k in text for k in ("process", "task manager", "top processes", "system stats", "system status", "cpu", "ram", "memory")):
-            recommended.append("get_processes")
-        if any(k in text for k in ("terminal", "command ", "run ")) and "command" in text:
-            recommended.append("execute_command")
-        if any(k in text for k in ("open file", "open a file")):
-            recommended.append("open_file")
-
-        # De-duplicate while preserving order.
-        seen = set()
-        return [r for r in recommended if not (r in seen or seen.add(r))]
+            return intent_planner.recommend(intent, context)
+        except Exception as e:  # noqa: BLE001
+            logger.error("intent_recommend_error", error=str(e))
+            return []
 
 
 _registry: Optional[ToolRegistry] = None

@@ -186,10 +186,24 @@ class BrowserManager:
         self._context = None      # persistent-context launch
         self._page = None
         self.browser_name: str = "not started"
+        self.executable_basename: Optional[str] = None  # e.g. "google-chrome"
 
     @property
     def available(self) -> bool:
         return _PLAYWRIGHT_AVAILABLE
+
+    @property
+    def is_running(self) -> bool:
+        """Whether a page/browser is currently open and usable."""
+        try:
+            if not self._page:
+                return False
+            if self._browser is not None and not self._browser.is_connected():
+                return False
+            _ = self._page.url
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     async def _is_browser_alive(self) -> bool:
         """Check if browser/context and page are still alive and usable."""
@@ -218,6 +232,7 @@ class BrowserManager:
         if executable:
             kwargs["executable_path"] = executable
             self.browser_name = os.path.basename(executable).title()
+            self.executable_basename = os.path.basename(executable)
             return kwargs
 
         detected = detect_system_browser()
@@ -225,10 +240,12 @@ class BrowserManager:
             path, name = detected
             kwargs["executable_path"] = path
             self.browser_name = name
+            self.executable_basename = os.path.basename(path)
             return kwargs
 
         # No system browser: Playwright's bundled Chromium.
         self.browser_name = "Chromium (Playwright bundled)"
+        self.executable_basename = None
         if settings.pluto_browser_channel.strip():
             kwargs["channel"] = settings.pluto_browser_channel.strip()
         return kwargs
@@ -455,14 +472,21 @@ class BrowserManager:
                             error_code="ELEMENT_NOT_FOUND",
                         )
                 else:
-                    # Default: click the first link/button on the page.
+                    # Default: click the Nth link/button on the page (0 = first).
                     locator = self._page.locator("a, button")
-                    if await locator.count() == 0:
+                    count = await locator.count()
+                    if count == 0:
                         return ToolResult.fail(
                             "browser", "No clickable elements found on this page.",
                             error_code="ELEMENT_NOT_FOUND",
                         )
-                    await locator.nth(0).click(timeout=6000)
+                    if index >= count:
+                        return ToolResult.fail(
+                            "browser",
+                            f"Index {index} is out of range ({count} clickable elements found).",
+                            error_code="ELEMENT_NOT_FOUND",
+                        )
+                    await locator.nth(index).click(timeout=6000)
             except PWTimeout:
                 return ToolResult.fail(
                     "browser", "Timed out while clicking the element.", error_code="CLICK_TIMEOUT"
@@ -484,49 +508,99 @@ class BrowserManager:
                 },
             )
 
+    @staticmethod
+    def _normalise_text(value: str) -> str:
+        return " ".join((value or "").split()).casefold()
+
     async def _click_by_text(self, text: str) -> bool:
-        """Try progressively specific text matches; returns True on success."""
-        candidates = [
-            f"a:has-text('{text}')",
-            f"button:has-text('{text}')",
-            f"a:has-text('{text}') >> nth=0",
-        ]
-        for sel in candidates:
+        """Click a link/button whose visible text contains ``text``.
+
+        Iterates the real DOM (instead of CSS ``:has-text`` string building,
+        which breaks on quotes) and prefers the closest clickable ancestor.
+        Returns True on success.
+        """
+        needle = self._normalise_text(text)
+        if not needle:
+            return False
+        try:
+            loc = self._page.locator("a, button, [role='button'], [role='link'], input[type='submit'], input[type='button']")
+            count = await loc.count()
+        except Exception:  # noqa: BLE001
+            return False
+
+        # 1) exact (normalised) text match first
+        for i in range(min(count, 300)):
             try:
-                loc = self._page.locator(sel)
-                if await loc.count() > 0:
-                    await loc.first.click(timeout=5000)
-                    return True
+                value = self._normalise_text(await loc.nth(i).inner_text())
             except Exception:  # noqa: BLE001
                 continue
+            if value == needle:
+                try:
+                    await loc.nth(i).click(timeout=6000)
+                    return True
+                except Exception:  # noqa: BLE001
+                    continue
+        # 2) then a partial (contains) match
+        for i in range(min(count, 300)):
+            try:
+                value = self._normalise_text(await loc.nth(i).inner_text())
+            except Exception:  # noqa: BLE001
+                continue
+            if needle in value:
+                try:
+                    await loc.nth(i).click(timeout=6000)
+                    return True
+                except Exception:  # noqa: BLE001
+                    continue
         return False
+
+    _KEY_ALIASES = {
+        "enter": "Enter", "return": "Enter", "esc": "Escape", "escape": "Escape",
+        "space": "Space", "tab": "Tab", "f11": "F11", "f": "KeyF",
+        "up": "ArrowUp", "down": "ArrowDown", "left": "ArrowLeft", "right": "ArrowRight",
+        "pageup": "PageUp", "pgup": "PageUp", "pagedown": "PageDown", "pgdn": "PageDown",
+        "home": "Home", "end": "End", "insert": "Insert", "delete": "Delete",
+        "backspace": "Backspace", "capslock": "CapsLock",
+    }
+    _MOD_ALIASES = {
+        "ctrl": "Control", "control": "Control", "alt": "Alt", "shift": "Shift",
+        "meta": "Meta", "super": "Meta", "cmd": "Meta", "command": "Meta",
+    }
+
+    @classmethod
+    def _map_key(cls, key: str) -> str:
+        raw = (key or "").strip()
+        if not raw:
+            return ""
+        lower = raw.lower()
+        if lower in cls._KEY_ALIASES:
+            return cls._KEY_ALIASES[lower]
+        if "+" in raw:
+            parts = []
+            for token in raw.split("+"):
+                t = token.strip()
+                parts.append(cls._MOD_ALIASES.get(t.lower(), t if len(t) > 1 else t.lower()))
+            return "+".join(parts)
+        return raw
 
     async def press_key(self, key: str) -> ToolResult:
         async with self._lock:
             ready = await self._ensure()
             if not ready.success:
                 return ready
-            mapped = key.strip()
-            if mapped.lower() in ("enter", "return"):
-                mapped = "Enter"
-            elif mapped.lower() == "f":
-                mapped = "KeyF"
-            elif mapped.lower() in ("f11",):
-                mapped = "F11"
-            elif mapped.lower() in ("esc", "escape"):
-                mapped = "Escape"
-            elif mapped.lower() in ("space",):
-                mapped = "Space"
-            elif mapped.lower() in ("tab",):
-                mapped = "Tab"
+            mapped = self._map_key(key)
+            if not mapped:
+                return ToolResult.fail("browser", "No key was provided.", error_code="BAD_ARGUMENTS")
             try:
-                if mapped == "KeyF":
-                    await self._page.keyboard.press("KeyF")
-                else:
-                    await self._page.keyboard.press(mapped)
+                await self._page.keyboard.press(mapped)
             except Exception as e:  # noqa: BLE001
-                return ToolResult.fail("browser", f"Key press failed: {e}", error_code="KEY_FAILED")
-            return ToolResult.ok("browser", message=f"Pressed {key}.", data={"key": key})
+                return ToolResult.fail(
+                    "browser", f"Key press failed ('{key}' -> '{mapped}'): {e}",
+                    error_code="KEY_FAILED",
+                )
+            return ToolResult.ok(
+                "browser", message=f"Pressed {key}.", data={"key": key, "mapped": mapped}
+            )
 
     async def type_text(self, text: str) -> ToolResult:
         async with self._lock:
