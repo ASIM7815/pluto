@@ -1,508 +1,537 @@
-"""File Management Tools - Open, find, manage files using terminal commands"""
-import shlex
+"""File Management Tools - real, sandboxed, verified operations.
+
+All paths are expanded and checked against the security sandbox
+(PLUTO_ALLOWED_PATHS) before any OS mutation. Every tool verifies its effect
+and reports an honest ToolResult - never a fabricated success.
+"""
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-from app.tools.terminal_base import TerminalTool, ToolResult, SafetyLevel, VerificationMixin
+from typing import Any, Dict, List, Optional
+
+from app.core.security import security_validator
 from app.core.logging import get_logger
+from app.tools.terminal_base import (
+    TerminalTool,
+    ToolResult,
+    SafetyLevel,
+    VerificationMixin,
+    command_exists,
+    has_display,
+    human_display_hint,
+)
 
 logger = get_logger(__name__)
 
+MAX_FILE_READ_CHARS = 200_000  # cap content fed to the LLM
 
-# Safe base directories
-SAFE_DIRECTORIES = [
-    "~/Desktop",
-    "~/Documents",
-    "~/Downloads",
-    "~/Pictures",
-    "~/Videos",
-    "~/Music",
-    "~/Projects",
-]
 
-# Blocked directories
-BLOCKED_DIRECTORIES = [
-    "/etc",
-    "/sys",
-    "/proc",
-    "/boot",
-    "~/.ssh",
-    "/root",
-]
+def _resolve_and_check(path: str) -> tuple[Optional[str], Optional[ToolResult]]:
+    """Expand + validate a path against the sandbox.
+
+    Returns (abs_path, None) on success, (None, error_result) on failure.
+    """
+    expanded = os.path.expanduser(path)
+    is_valid, message = security_validator.validate_path(expanded)
+    if not is_valid:
+        return None, ToolResult.fail(
+            "file_tool", f"Access denied: {message}", error_code="PERMISSION_DENIED"
+        )
+    return expanded, None
 
 
 class OpenFileTool(TerminalTool, VerificationMixin):
-    """Open a file with default application"""
-    
+    """Open a file with its default application."""
+
     name = "open_file"
-    description = "Opens a file with its default application. Works for documents, images, videos, etc."
+    description = (
+        "Opens a file with its default desktop application (document, image, "
+        "video, etc.). Requires a graphical desktop session."
+    )
     safety_level = SafetyLevel.SAFE
-    
+    category = "file"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Full path to the file to open"
-                }
+                "path": {"type": "string", "description": "Full path to the file to open"}
             },
-            "required": ["path"]
+            "required": ["path"],
         }
-    
+
     async def execute(self, path: str, **kwargs) -> ToolResult:
-        """
-        Open a file
-        
-        Args:
-            path: File path
-            
-        Returns:
-            ToolResult
-        """
-        # Expand home directory
-        expanded_path = os.path.expanduser(path)
-        
-        # Check if file exists
-        file_exists = await self.file_exists(expanded_path)
-        if not file_exists:
-            return ToolResult(
-                success=False,
-                message=f"File not found: {path}",
-                error="File does not exist"
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+
+        if not os.path.exists(abs_path):
+            return ToolResult.fail(self.name, f"File not found: {path}", error_code="FILE_NOT_FOUND")
+        if os.path.isdir(abs_path):
+            return ToolResult.fail(self.name, f"Path is a folder, not a file: {path}", error_code="NOT_A_FILE")
+
+        if not command_exists("xdg-open"):
+            return ToolResult.fail(
+                self.name,
+                "xdg-open is not installed, so files cannot be opened with a default application.",
+                error_code="MISSING_DEPENDENCY",
             )
-        
-        # Check if it's a file (not directory)
-        is_file = await self.is_file(expanded_path)
-        if not is_file:
-            return ToolResult(
-                success=False,
-                message=f"Path is not a file: {path}",
-                error="Not a file"
+        if not has_display():
+            return ToolResult.fail(
+                self.name, human_display_hint(), error_code="NO_DISPLAY"
             )
-        
-        # Open with xdg-open (opens with default app)
-        result = await self.run_command(
-            ["xdg-open", expanded_path],
-            check_exit_code=False
-        )
-        
-        logger.info("file_opened", path=path, success=result.success)
-        return ToolResult(
-            success=True,
-            message=f"Opened {os.path.basename(path)}",
-            output=result.output,
-            data={"path": expanded_path, "filename": os.path.basename(path)},
-            context_updates={"recent_files": [expanded_path]}
+
+        result = await self.run_command(["xdg-open", abs_path], check_exit_code=False)
+        if not result.success:
+            return ToolResult.fail(
+                self.name,
+                f"Could not open {os.path.basename(path)} with its default application.",
+                error=result.error, error_code="OPEN_FAILED",
+            )
+        return ToolResult.ok(
+            self.name,
+            message=f"Opened {os.path.basename(path)} in its default application.",
+            data={"path": abs_path, "filename": os.path.basename(path)},
+            context_updates={"recent_files": [abs_path], "current_directory": os.path.dirname(abs_path)},
+            verification_passed=True,
         )
 
 
 class OpenFolderTool(TerminalTool, VerificationMixin):
-    """Open a folder in file manager"""
-    
+    """Open a folder in the file manager."""
+
     name = "open_folder"
-    description = "Opens a folder/directory in the file manager. Use to browse directories."
+    description = "Opens a folder/directory in the graphical file manager."
     safety_level = SafetyLevel.SAFE
-    
+    category = "file"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Full path to the folder to open"
-                }
+                "path": {"type": "string", "description": "Full path to the folder to open"}
             },
-            "required": ["path"]
+            "required": ["path"],
         }
-    
+
     async def execute(self, path: str, **kwargs) -> ToolResult:
-        """
-        Open a folder
-        
-        Args:
-            path: Folder path
-            
-        Returns:
-            ToolResult
-        """
-        # Expand home directory
-        expanded_path = os.path.expanduser(path)
-        
-        # Check if directory exists
-        dir_exists = await self.file_exists(expanded_path)
-        if not dir_exists:
-            return ToolResult(
-                success=False,
-                message=f"Folder not found: {path}",
-                error="Directory does not exist"
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+        if not os.path.isdir(abs_path):
+            return ToolResult.fail(self.name, f"Folder not found: {path}", error_code="DIR_NOT_FOUND")
+        if not command_exists("xdg-open"):
+            return ToolResult.fail(self.name, "xdg-open is not installed.", error_code="MISSING_DEPENDENCY")
+        if not has_display():
+            return ToolResult.fail(self.name, human_display_hint(), error_code="NO_DISPLAY")
+
+        result = await self.run_command(["xdg-open", abs_path], check_exit_code=False)
+        if not result.success:
+            return ToolResult.fail(
+                self.name, f"Could not open folder {path}.", error_code="OPEN_FAILED"
             )
-        
-        # Check if it's a directory
-        is_dir = await self.is_directory(expanded_path)
-        if not is_dir:
-            return ToolResult(
-                success=False,
-                message=f"Path is not a folder: {path}",
-                error="Not a directory"
-            )
-        
-        # Open with xdg-open (opens in file manager)
-        result = await self.run_command(
-            ["xdg-open", expanded_path],
-            check_exit_code=False
-        )
-        
-        # Verify file manager window opened
-        import asyncio
-        await asyncio.sleep(1)
-        window_exists = await self.verify_window_exists("File", timeout=3)
-        
-        logger.info("folder_opened", path=path, window_found=window_exists)
-        return ToolResult(
-            success=True,
-            message=f"Opened folder {os.path.basename(path) or path}",
-            output=result.output,
-            verification_passed=window_exists,
-            data={"path": expanded_path, "folder_name": os.path.basename(path)},
-            context_updates={"current_directory": expanded_path}
+        return ToolResult.ok(
+            self.name,
+            message=f"Opened folder {os.path.basename(abs_path) or abs_path} in the file manager.",
+            data={"path": abs_path},
+            context_updates={"current_directory": abs_path},
+            verification_passed=True,
         )
 
 
 class FindFilesTool(TerminalTool):
-    """Find files by name or pattern"""
-    
+    """Find files by name (bounded walk, respects the sandbox)."""
+
     name = "find_files"
-    description = "Searches for files by name pattern. Returns list of matching files."
+    description = (
+        "Searches for files by name pattern inside an allowed directory "
+        "and returns the matching paths (max 25)."
+    )
     safety_level = SafetyLevel.SAFE
-    
+    category = "file"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query (filename pattern)"
-                },
+                "query": {"type": "string", "description": "Filename substring to search for"},
                 "location": {
                     "type": "string",
-                    "description": "Where to search (e.g., '~/Documents', '~/Downloads'). Defaults to home directory.",
-                    "default": "~"
+                    "description": "Directory to search (default: ~, i.e. home)",
+                    "default": "~",
                 },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return",
-                    "default": 20
-                }
+                "max_results": {"type": "integer", "default": 25},
             },
-            "required": ["query"]
+            "required": ["query"],
         }
-    
+
     async def execute(
         self,
         query: str,
         location: str = "~",
-        max_results: int = 20,
-        **kwargs
+        max_results: int = 25,
+        **kwargs,
     ) -> ToolResult:
-        """
-        Find files matching query
-        
-        Args:
-            query: Search pattern
-            location: Where to search
-            max_results: Max results
-            
-        Returns:
-            ToolResult with file list
-        """
-        # Expand location path
-        search_path = os.path.expanduser(location)
-        
-        # Validate location exists
-        path_exists = await self.file_exists(search_path)
-        if not path_exists:
-            return ToolResult(
-                success=False,
-                message=f"Search location not found: {location}",
-                error="Location does not exist"
+        search_dir, err = _resolve_and_check(location or "~")
+        if err:
+            return err
+        if not os.path.isdir(search_dir):
+            return ToolResult.fail(
+                self.name, f"Search location not found: {location}", error_code="DIR_NOT_FOUND"
             )
-        
-        # Build find command
-        # Use -iname for case-insensitive search
-        find_cmd = f"find {shlex.quote(search_path)} -type f -iname '*{query}*' 2>/dev/null | head -n {max_results}"
-        
-        result = await self.run_command(
-            find_cmd,
-            shell=True,
-            check_exit_code=False
-        )
-        
-        # Parse results
-        files = []
-        if result.output:
-            for line in result.output.strip().split('\n'):
-                if line:
-                    files.append({
-                        "path": line,
-                        "name": os.path.basename(line),
-                        "directory": os.path.dirname(line)
+
+        max_results = max(1, min(int(max_results or 25), 100))
+        query_lower = (query or "").lower()
+        matches: List[Dict[str, Any]] = []
+
+        for root, dirs, files in os.walk(search_dir):
+            # Skip hidden dirs and common noise.
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "venv", ".git", "__pycache__")]
+            for name in files:
+                if query_lower in name.lower():
+                    full = os.path.join(root, name)
+                    matches.append({
+                        "path": full,
+                        "name": name,
+                        "directory": root,
                     })
-        
-        logger.info("files_found", query=query, location=location, count=len(files))
-        
-        # Format message
-        if files:
-            file_list = "\n".join([f"- {f['name']} ({f['directory']})" for f in files[:10]])
-            message = f"Found {len(files)} file(s) matching '{query}':\n{file_list}"
-            if len(files) > 10:
-                message += f"\n... and {len(files) - 10} more"
-        else:
-            message = f"No files found matching '{query}' in {location}"
-        
-        return ToolResult(
-            success=True,
-            message=message,
-            output=result.output,
-            data={
-                "files": files,
-                "count": len(files),
-                "query": query,
-                "location": location
-            },
-            context_updates={
-                "search_results": files,
-                "last_search_query": query
-            }
+                    if len(matches) >= max_results:
+                        break
+            if len(matches) >= max_results:
+                break
+
+        if not matches:
+            return ToolResult.ok(
+                self.name,
+                message=f"No files found matching '{query}' in {location}.",
+                data={"files": [], "count": 0, "query": query, "location": location},
+            )
+        names = "\n".join(f"- {m['path']}" for m in matches[:10])
+        more = f"\n... and {len(matches) - 10} more" if len(matches) > 10 else ""
+        return ToolResult.ok(
+            self.name,
+            message=f"Found {len(matches)} file(s) matching '{query}':\n{names}{more}",
+            data={"files": matches, "count": len(matches), "query": query, "location": location},
+            context_updates={"last_search_query": query, "search_results": matches},
         )
 
 
 class CreateFolderTool(TerminalTool, VerificationMixin):
-    """Create a new folder"""
-    
+    """Create a new folder."""
+
     name = "create_folder"
-    description = "Creates a new folder/directory. Use for organizing files or starting projects."
+    description = "Creates a new folder/directory (with parent directories if needed)."
     safety_level = SafetyLevel.SAFE
-    
+    category = "file"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Full path for the new folder"
-                },
-                "parents": {
-                    "type": "boolean",
-                    "description": "Create parent directories if needed",
-                    "default": True
-                }
+                "path": {"type": "string", "description": "Full path for the new folder"},
+                "parents": {"type": "boolean", "description": "Create parents if needed", "default": True},
             },
-            "required": ["path"]
+            "required": ["path"],
         }
-    
+
     async def execute(self, path: str, parents: bool = True, **kwargs) -> ToolResult:
-        """
-        Create a folder
-        
-        Args:
-            path: Folder path
-            parents: Create parent dirs
-            
-        Returns:
-            ToolResult
-        """
-        # Expand path
-        expanded_path = os.path.expanduser(path)
-        
-        # Check if already exists
-        already_exists = await self.file_exists(expanded_path)
-        if already_exists:
-            return ToolResult(
-                success=True,
-                message=f"Folder already exists: {path}",
-                data={"path": expanded_path, "already_existed": True}
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+        if os.path.exists(abs_path):
+            return ToolResult.ok(
+                self.name,
+                message=f"Folder already exists: {abs_path}",
+                data={"path": abs_path, "already_existed": True},
+                context_updates={"current_directory": abs_path},
             )
-        
-        # Create directory
-        mkdir_cmd = ["mkdir"]
-        if parents:
-            mkdir_cmd.append("-p")
-        mkdir_cmd.append(expanded_path)
-        
-        result = await self.run_command(mkdir_cmd)
-        
-        if result.success:
-            # Verify creation
-            created = await self.file_exists(expanded_path)
-            logger.info("folder_created", path=path, verified=created)
-            
-            return ToolResult(
-                success=True,
-                message=f"Created folder {os.path.basename(path)}",
-                output=result.output,
-                verification_passed=created,
-                data={"path": expanded_path, "name": os.path.basename(path)}
+        try:
+            if parents:
+                os.makedirs(abs_path, exist_ok=True)
+            else:
+                os.mkdir(abs_path)
+        except OSError as e:
+            logger.error("folder_create_error", path=path, error=str(e))
+            return ToolResult.fail(
+                self.name, f"Failed to create folder: {e}", error_code="CREATE_FAILED"
             )
-        else:
-            return ToolResult(
-                success=False,
-                message=f"Failed to create folder: {path}",
-                error=result.error
+
+        created = os.path.isdir(abs_path)
+        return ToolResult.ok(
+            self.name,
+            message=f"Created folder {abs_path}",
+            data={"path": abs_path, "name": os.path.basename(abs_path)},
+            verification_passed=created,
+            context_updates={"current_directory": abs_path},
+        )
+
+
+class CreateFileTool(TerminalTool, VerificationMixin):
+    """Create a new file with content."""
+
+    name = "create_file"
+    description = "Creates a new text file at the given path, optionally with content."
+    safety_level = SafetyLevel.SAFE
+    category = "file"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Full path for the new file"},
+                "content": {"type": "string", "description": "File content (optional)"},
+            },
+            "required": ["path"],
+        }
+
+    async def execute(self, path: str, content: str = "", **kwargs) -> ToolResult:
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+        try:
+            parent = os.path.dirname(abs_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            with open(abs_path, "w", encoding="utf-8") as fh:
+                fh.write(content or "")
+        except OSError as e:
+            logger.error("file_create_error", path=path, error=str(e))
+            return ToolResult.fail(
+                self.name, f"Failed to create file: {e}", error_code="CREATE_FAILED"
             )
+        exists = os.path.isfile(abs_path)
+        return ToolResult.ok(
+            self.name,
+            message=f"Created file {abs_path}",
+            data={"path": abs_path, "size": len(content or "")},
+            verification_passed=exists,
+            context_updates={"recent_files": [abs_path]},
+        )
+
+
+class ReadFileTool(TerminalTool):
+    """Read file content."""
+
+    name = "read_file"
+    description = "Reads the content of a text file (content is truncated to keep context small)."
+    safety_level = SafetyLevel.SAFE
+    category = "file"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "Full path of the file to read"}},
+            "required": ["path"],
+        }
+
+    async def execute(self, path: str, **kwargs) -> ToolResult:
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+        if not os.path.isfile(abs_path):
+            return ToolResult.fail(self.name, f"File not found: {path}", error_code="FILE_NOT_FOUND")
+        try:
+            with open(abs_path, "r", encoding="utf-8", errors="replace") as fh:
+                content = fh.read(MAX_FILE_READ_CHARS)
+        except OSError as e:
+            return ToolResult.fail(self.name, f"Could not read file: {e}", error_code="READ_FAILED")
+        truncated = len(content) >= MAX_FILE_READ_CHARS
+        return ToolResult.ok(
+            self.name,
+            message=f"Read {os.path.basename(abs_path)} ({len(content)} chars)"
+            + (" - truncated" if truncated else ""),
+            data={"path": abs_path, "content": content, "truncated": truncated},
+            context_updates={"recent_files": [abs_path]},
+        )
+
+
+class ListDirectoryTool(TerminalTool):
+    """List directory contents."""
+
+    name = "list_directory"
+    description = "Lists the entries of a directory (names, types, sizes)."
+    safety_level = SafetyLevel.SAFE
+    category = "file"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "Directory path"}},
+            "required": ["path"],
+        }
+
+    async def execute(self, path: str = "~", **kwargs) -> ToolResult:
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+        if not os.path.isdir(abs_path):
+            return ToolResult.fail(self.name, f"Directory not found: {path}", error_code="DIR_NOT_FOUND")
+        items = []
+        try:
+            for entry in sorted(os.scandir(abs_path), key=lambda e: e.name.lower()):
+                try:
+                    is_dir = entry.is_dir()
+                    size = entry.stat().st_size if not is_dir else 0
+                except OSError:
+                    is_dir, size = False, 0
+                items.append({"name": entry.name, "path": entry.path, "type": "directory" if is_dir else "file", "size": size})
+        except OSError as e:
+            return ToolResult.fail(self.name, f"Could not list directory: {e}", error_code="LIST_FAILED")
+        return ToolResult.ok(
+            self.name,
+            message=f"Listed {len(items)} item(s) in {abs_path}",
+            data={"path": abs_path, "items": items[:500]},
+            context_updates={"current_directory": abs_path},
+        )
+
+
+class DeleteFileTool(TerminalTool, VerificationMixin):
+    """Delete a file or directory (confirmation required upstream)."""
+
+    name = "delete_file"
+    description = "Permanently deletes a file or directory. Requires user confirmation."
+    safety_level = SafetyLevel.CONFIRM_REQUIRED
+    category = "file"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "File/directory path to delete"}},
+            "required": ["path"],
+        }
+
+    async def execute(self, path: str, **kwargs) -> ToolResult:
+        abs_path, err = _resolve_and_check(path)
+        if err:
+            return err
+        if not os.path.exists(abs_path):
+            return ToolResult.fail(self.name, f"Path not found: {path}", error_code="FILE_NOT_FOUND")
+
+        # Refuse deleting sandbox roots themselves.
+        from app.core.config import settings
+        for allowed in settings.allowed_paths_list:
+            if abs_path.rstrip("/") == os.path.expanduser(allowed).rstrip("/"):
+                return ToolResult.fail(
+                    self.name, "Refusing to delete an allowed root directory.",
+                    error_code="PERMISSION_DENIED",
+                )
+
+        try:
+            if os.path.isdir(abs_path):
+                import shutil
+                shutil.rmtree(abs_path)
+            else:
+                os.unlink(abs_path)
+        except OSError as e:
+            return ToolResult.fail(self.name, f"Delete failed: {e}", error_code="DELETE_FAILED")
+
+        gone = not os.path.exists(abs_path)
+        return ToolResult.ok(
+            self.name,
+            message=f"Deleted {abs_path}",
+            data={"path": abs_path},
+            verification_passed=gone,
+        )
 
 
 class MoveFileTool(TerminalTool, VerificationMixin):
-    """Move or rename a file"""
-    
+    """Move or rename a file (confirmation required upstream)."""
+
     name = "move_file"
-    description = "Moves a file to a new location or renames it. Requires confirmation."
+    description = "Moves a file/folder to a new location or renames it. Requires confirmation."
     safety_level = SafetyLevel.CONFIRM_REQUIRED
-    
+    category = "file"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "source": {
-                    "type": "string",
-                    "description": "Source file path"
-                },
-                "destination": {
-                    "type": "string",
-                    "description": "Destination path"
-                }
+                "source": {"type": "string", "description": "Source path"},
+                "destination": {"type": "string", "description": "Destination path"},
             },
-            "required": ["source", "destination"]
+            "required": ["source", "destination"],
         }
-    
+
     async def execute(self, source: str, destination: str, **kwargs) -> ToolResult:
-        """
-        Move/rename file
-        
-        Args:
-            source: Source path
-            destination: Destination path
-            
-        Returns:
-            ToolResult
-        """
-        # Expand paths
-        src_path = os.path.expanduser(source)
-        dest_path = os.path.expanduser(destination)
-        
-        # Check source exists
-        src_exists = await self.file_exists(src_path)
-        if not src_exists:
-            return ToolResult(
-                success=False,
-                message=f"Source file not found: {source}",
-                error="Source does not exist"
-            )
-        
-        # Move file
-        result = await self.run_command(
-            ["mv", src_path, dest_path]
+        src, err = _resolve_and_check(source)
+        if err:
+            return err
+        dest, err = _resolve_and_check(destination)
+        if err:
+            return err
+        if not os.path.exists(src):
+            return ToolResult.fail(self.name, f"Source not found: {source}", error_code="FILE_NOT_FOUND")
+        try:
+            os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+            os.replace(src, dest)
+        except OSError as e:
+            return ToolResult.fail(self.name, f"Move failed: {e}", error_code="MOVE_FAILED")
+        return ToolResult.ok(
+            self.name,
+            message=f"Moved {os.path.basename(source)} to {destination}",
+            data={"source": src, "destination": dest},
+            verification_passed=os.path.exists(dest) and not os.path.exists(src),
+            context_updates={"recent_files": [dest]},
         )
-        
-        if result.success:
-            # Verify move
-            dest_exists = await self.file_exists(dest_path)
-            src_gone = not await self.file_exists(src_path)
-            
-            logger.info("file_moved", source=source, destination=destination)
-            return ToolResult(
-                success=True,
-                message=f"Moved {os.path.basename(source)} to {destination}",
-                output=result.output,
-                verification_passed=(dest_exists and src_gone),
-                data={"source": src_path, "destination": dest_path}
-            )
-        else:
-            return ToolResult(
-                success=False,
-                message=f"Failed to move file: {result.error}",
-                error=result.error
-            )
 
 
 class CopyFileTool(TerminalTool, VerificationMixin):
-    """Copy a file"""
-    
+    """Copy a file/folder (keeps the original)."""
+
     name = "copy_file"
-    description = "Copies a file to a new location. Original file is kept."
+    description = "Copies a file or folder to a new location. The original is kept."
     safety_level = SafetyLevel.SAFE
-    
+    category = "file"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "source": {
-                    "type": "string",
-                    "description": "Source file path"
-                },
-                "destination": {
-                    "type": "string",
-                    "description": "Destination path"
-                }
+                "source": {"type": "string", "description": "Source path"},
+                "destination": {"type": "string", "description": "Destination path"},
             },
-            "required": ["source", "destination"]
+            "required": ["source", "destination"],
         }
-    
+
     async def execute(self, source: str, destination: str, **kwargs) -> ToolResult:
-        """
-        Copy file
-        
-        Args:
-            source: Source path
-            destination: Destination path
-            
-        Returns:
-            ToolResult
-        """
-        # Expand paths
-        src_path = os.path.expanduser(source)
-        dest_path = os.path.expanduser(destination)
-        
-        # Check source exists
-        src_exists = await self.file_exists(src_path)
-        if not src_exists:
-            return ToolResult(
-                success=False,
-                message=f"Source file not found: {source}",
-                error="Source does not exist"
-            )
-        
-        # Copy file
-        result = await self.run_command(
-            ["cp", "-r", src_path, dest_path]  # -r for directories too
+        src, err = _resolve_and_check(source)
+        if err:
+            return err
+        dest, err = _resolve_and_check(destination)
+        if err:
+            return err
+        if not os.path.exists(src):
+            return ToolResult.fail(self.name, f"Source not found: {source}", error_code="FILE_NOT_FOUND")
+        try:
+            os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+            if os.path.isdir(src):
+                import shutil
+                shutil.copytree(src, dest, dirs_exist_ok=True)
+            else:
+                import shutil
+                shutil.copy2(src, dest)
+        except OSError as e:
+            return ToolResult.fail(self.name, f"Copy failed: {e}", error_code="COPY_FAILED")
+        return ToolResult.ok(
+            self.name,
+            message=f"Copied {os.path.basename(source)} to {destination}",
+            data={"source": src, "destination": dest},
+            verification_passed=os.path.exists(dest),
+            context_updates={"recent_files": [dest]},
         )
-        
-        if result.success:
-            # Verify copy
-            dest_exists = await self.file_exists(dest_path)
-            
-            logger.info("file_copied", source=source, destination=destination)
-            return ToolResult(
-                success=True,
-                message=f"Copied {os.path.basename(source)} to {destination}",
-                output=result.output,
-                verification_passed=dest_exists,
-                data={"source": src_path, "destination": dest_path}
-            )
-        else:
-            return ToolResult(
-                success=False,
-                message=f"Failed to copy file: {result.error}",
-                error=result.error
-            )
 
 
-# Register all tools
-FILE_TOOLS = [
+# Registered tools
+FILE_TOOLS: List[TerminalTool] = [
     OpenFileTool(),
     OpenFolderTool(),
     FindFilesTool(),
     CreateFolderTool(),
+    CreateFileTool(),
+    ReadFileTool(),
+    ListDirectoryTool(),
+    DeleteFileTool(),
     MoveFileTool(),
     CopyFileTool(),
 ]

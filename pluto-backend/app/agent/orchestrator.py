@@ -1,368 +1,405 @@
-"""PLUTO Agent Orchestrator V2 - Enhanced with context awareness and Level 1 capabilities.
+"""PLUTO Agent Orchestrator - the autonomous task loop.
 
-Runs: IDLE -> LISTENING -> UNDERSTANDING -> THINKING -> PLANNING -> EXECUTING -> VERIFYING -> SPEAKING -> LISTENING (loop)
-After speaking, it emits a `listening` event so the frontend auto-returns to
-LISTENING and can keep receiving commands continuously.
+Flow per command (all states live on the session's StateMachine and every
+agent_state event is pushed to the frontend so the orb always mirrors reality):
 
-Level 1 Features:
-- Terminal-first desktop control (15+ tools)
-- Context-aware planning (remembers current app, files, actions)
-- Continuous listening mode
-- Verification after each action
+    (IDLE -> LISTENING)
+    UNDERSTANDING -> THINKING -> PLANNING -> EXECUTING -> VERIFYING
+        -> (tool failed -> ERROR -> LISTENING)
+        -> OBSERVING -> REASONING -> THINKING ... (multi-step loop)
+    -> SPEAKING -> SUCCESS -> LISTENING        (auto-return, ready for the
+                                                 next command)
+
+Key invariants:
+- Every ContextManager call is scoped by session_id (the same id the
+  frontend/voice/WS session uses).
+- The planner NEVER announces success when a tool actually failed: a failed
+  tool immediately stops the task and produces an honest error response.
+- Tools are executed through the unified registry only.
+- No blocking calls: everything is async.
 """
+from __future__ import annotations
+
 import asyncio
 import base64
 import json
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+import uuid
+from typing import Any, Dict, List, Optional, Tuple
 
-from app.agent.tool_registry import tool_registry
+from app.agent.context_manager import context_manager
 from app.agent.session_manager import Session
-from app.agent.state_machine import StateMachine, PlutoState
-from app.agent.context_manager import ContextManager, Action
-from app.tools.registry import get_registry as get_tool_registry_v2
+from app.agent.state_machine import PlutoState
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.llm.gpt_oss import gpt_oss_client, LLMToolCall, LLMResponse
+from app.llm.gpt_oss import gpt_oss_client, LLMToolCall
 from app.schemas.chat import (
     ActionPreview,
     Activity,
     AgentStateEvent,
+    CommandResponse,
     ExecutionStep,
 )
-from app.voice.elevenlabs import elevenlabs_client
-from app.voice.local_tts import local_tts_client
+from app.tools.registry import get_registry
+from app.tools.terminal_base import ToolResult, SafetyLevel
 
 logger = get_logger(__name__)
 
-# push is an async callable that emits an AgentStateEvent to the frontend.
-PushEvent = Callable[[AgentStateEvent], Any]
-
 
 class AgentOrchestrator:
-    """Central orchestrator running the autonomous agent loop with Level 1 capabilities."""
+    """Central orchestrator running the autonomous agent loop."""
 
-    def __init__(self) -> None:
-        self.conversation_history: List[Dict[str, str]] = []
-        self.state_machine = StateMachine()
-        self.context_manager = ContextManager()
-        self.tool_registry_v2 = get_tool_registry_v2()
-        
-        # No longer need async listener for synchronous transition()
-        # The sync transition() doesn't call listeners
-        
-        logger.info(
-            "orchestrator_initialized",
-            tools_v2=len(self.tool_registry_v2.get_all_tools()),
-            tools_legacy=len(tool_registry.get_tool_definitions())
-        )
+    system_prompt = """You are PLUTO, a futuristic autonomous AI desktop assistant running locally on the user's Linux computer. You are the brain and control system for this machine.
 
-    system_prompt = """You are PLUTO, a futuristic Level 1 autonomous AI desktop assistant running locally on the user's Linux computer. You are the brain and control system for this machine.
+CAPABILITIES:
+You have real tools for desktop control. Use a tool only when it truly needs to run on the machine; answer directly for conversation.
 
-LEVEL 1 CAPABILITIES (Terminal-First Desktop Control):
-You have 15+ tools across 4 categories:
+Application tools:
+- open_application: launch a desktop app (firefox, vscode, spotify, nautilus, ...)
+- close_application / switch_to_application / list_running_applications
 
-**Application Tools:**
-- open_application: Launch apps (Firefox, VSCode, Spotify, etc.)
-- close_application: Close running apps gracefully or force-kill
-- switch_to_application: Focus/activate an application window
-- list_running_applications: See all open apps
+File tools:
+- create_folder, create_file, read_file, list_directory, find_files, open_file,
+  open_folder, move_file, copy_file, delete_file
 
-**File Tools:**
-- open_file: Open files with default apps (documents, images, videos)
-- open_folder: Open directories in file manager
-- find_files: Search for files by name pattern
-- create_folder: Create new directories
-- move_file: Move or rename files
-- copy_file: Copy files to new locations
+Browser tools (real Chromium automation):
+- open_url: open/navigate to a URL (e.g. "open YouTube" -> https://www.youtube.com)
+- browser_search: search a site (site=youtube for "search Iron Man on YouTube")
+- browser_click: click an element - give selector (e.g. 'a#video-title') and a
+  zero-based index when the user says "the second video" (index 1)
+- browser_key, browser_type, browser_fullscreen, browser_snapshot
 
-**System Tools:**
-- take_screenshot: Capture screen (full/select/window)
-- set_volume: Control audio (0-100, mute, unmute)
-- get_volume: Check current volume level
-- copy_to_clipboard: Copy text to clipboard
-- get_clipboard: Get clipboard content
+System tools:
+- get_processes, kill_process, take_screenshot, set_volume, get_volume,
+  copy_to_clipboard, get_clipboard, execute_command (confirmation-gated)
 
-**Browser Tools (Legacy):**
-- open_url: Open URLs in browser
-- browser_navigate: Navigate and interact with pages
-- browser_click, browser_key, etc.
+Messaging tools:
+- send_message (uses the configured provider), open_chat_app
 
 CONTEXT AWARENESS:
-You have access to session context including:
-- Current active application
-- Browser URL and page title (if browser is open)
-- Recent 10 actions you've taken
-- Search queries and results
-- Recent files accessed
+A CURRENT CONTEXT block is appended below with your active application, browser
+URL/title, last search query, and recent actions. USE IT:
+- After "Open YouTube", a follow-up "Search Iron Man" means search ON YouTube
+  (use browser_search site=youtube), not a fresh unrelated website.
+- "Choose the second video" after a search means click the 2nd result
+  (browser_click with index 1) on the page you already have open.
+- "Create a folder" without a path should use the current directory if known.
 
-When the user gives a follow-up command like "search Iron Man" after "open YouTube", you understand that they mean search ON YouTube because that's the current context.
+CONTINUOUS LISTENING:
+After each task you automatically return to LISTENING. The user can immediately
+give the next command - treat it as a continuation of the same working session.
 
-CONTINUOUS LISTENING MODE:
-- After completing a task, you automatically return to LISTENING mode
-- The user can give follow-up commands and you'll understand the context
-- If the user says "silence", "stop listening", "be quiet", or "shut up", acknowledge briefly and stop
-
-WORKFLOW:
-1. UNDERSTAND the user's intent using context
-2. PLAN which tool(s) to use
-3. EXECUTE tools one by one
-4. VERIFY each action succeeded
-5. SPEAK one short, natural response
-6. Return to LISTENING for next command
-
-IMPORTANT RULES:
-1. Use tools for real OS actions. Never fabricate a result.
-2. Break complex requests into clear sequential tool calls. After each tool result, verify and decide next step.
-3. Keep spoken replies to one or two short sentences that sound natural and helpful.
-4. For destructive operations (delete, move, terminal commands) the system will ask the user for confirmation.
-5. Use context to understand follow-up commands (e.g., "search" means search in current app)
-6. If you are unsure, ask a brief clarifying question rather than guessing.
-7. Always answer in the language the user uses.
-8. When the user says "silence" or similar, just say "Going silent" and stop.
+HONESTY RULES (never break these):
+1. Never claim an action succeeded unless its tool result says success.
+2. If a tool reports failure, say so plainly and stop - do not keep planning
+   new steps on top of a failed foundation.
+3. Keep spoken replies to one or two short, natural sentences.
+4. Destructive operations (delete, move, terminal, close, send) ask for
+   confirmation automatically - do not refuse, just let the gate work.
+5. Answer in the user's language. If unsure, ask a brief clarifying question.
 
 Respond naturally and helpfully."""
 
-    # ------------------------------------------------------------------
-    # Public entry: run one command for a session (WebSocket path)
-    # ------------------------------------------------------------------
+    def __init__(self) -> None:
+        self._registry = get_registry()
+        logger.info(
+            "orchestrator_initialized",
+            tools=len(self._registry.get_all_tools()),
+            categories=self._registry.get_tool_info()["categories"],
+        )
+
+    # ==================================================================
+    # Public entry points
+    # ==================================================================
     async def process_command(self, session: Session, command: str) -> None:
-        """Run the agent loop for a command and stream events to the session."""
+        """Run the agent loop for a WS session and stream events to it."""
         try:
-            await self._run_task(command, session.push, session)
+            await self._run_task(session, command)
         except asyncio.CancelledError:
             logger.info("command_cancelled", session=session.id)
-            await session.push(AgentStateEvent(type="agent_state", state="idle", task="Stopped."))
+            await session.push(AgentStateEvent(
+                type="agent_state", state="idle", task="Stopped."
+            ))
+            session.state_machine.transition(
+                PlutoState.IDLE, reason="user_interrupt", force=True
+            )
             raise
         except Exception as e:  # noqa: BLE001
-            logger.error("orchestrator_error", error=str(e))
-            await session.push(AgentStateEvent(type="agent_state", state="error", error=str(e)))
+            logger.exception("orchestrator_error", error=str(e))
+            await self._fail_task(session, detail=str(e) or "an internal error occurred")
         finally:
             session.running = False
 
-    # ------------------------------------------------------------------
-    # Public REST entry (backward compatible, auto-approves confirmations)
-    # ------------------------------------------------------------------
     async def execute_command(
-        self, command: str, context: Optional[Dict[str, Any]] = None
-    ) -> "Any":
-        """Async generator of AgentStateEvent for non-streaming REST use."""
-        events: List[AgentStateEvent] = []
-
-        async def push(event: AgentStateEvent) -> None:
-            events.append(event)
-
-        await self._run_task(command, push, None, context)
-        for event in events:
-            yield event
-
-    # ------------------------------------------------------------------
-    # The core loop
-    # ------------------------------------------------------------------
-    async def _run_task(
         self,
         command: str,
-        push: PushEvent,
-        session: Optional[Session],
+        context: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None,
+    ) -> CommandResponse:
+        """Non-streaming REST execution with persistent session context.
+
+        Returns a CommandResponse summarising the run. Confirmation-gated
+        actions cannot be approved over REST, so they are reported as such.
+        """
+        from app.agent.session_manager import session_manager
+
+        sid = (session_id or uuid.uuid4().hex[:12])
+        session = session_manager.get_or_create(sid)
+        session.confirmation_available = False  # REST: no human to approve
+
+        events: List[AgentStateEvent] = []
+
+        async def collect(event: AgentStateEvent) -> None:
+            events.append(event)
+
+        await self._run_task(session, command, push=collect, context=context)
+
+        # Reconstruct the same semantics the WS stream shows: prefer the first
+        # terminal event in stream order (success/error), and keep the last
+        # spoken text as the response message.
+        error_event = next((e for e in events if e.state == "error"), None)
+        success_event = next((e for e in events if e.state == "success"), None)
+        spoken = next((e for e in reversed(events) if e.type == "speak"), None)
+        final = events[-1] if events else None
+
+        if error_event is not None:
+            return CommandResponse(
+                success=False,
+                message=(spoken.text if spoken else error_event.error)
+                        or "Command failed",
+                state="error",
+                session_id=sid,
+                data={"response": spoken.text if spoken else error_event.error,
+                      "events": [e.model_dump() for e in events]},
+            )
+        if success_event is not None:
+            message = success_event.task or "Done."
+            return CommandResponse(
+                success=True,
+                message=message,
+                state="success",
+                session_id=sid,
+                data={"response": message, "events": [e.model_dump() for e in events]},
+            )
+        # Cancelled / rejected path already returned to LISTENING.
+        return CommandResponse(
+            success=True,
+            message=(final.task if final and final.task else "Done."),
+            state=(final.state or "idle") if final else "idle",
+            session_id=sid,
+            data={"events": [e.model_dump() for e in events]},
+        )
+
+    # ==================================================================
+    # The core loop
+    # ==================================================================
+    async def _run_task(
+        self,
+        session: Session,
+        command: str,
+        push=None,
         context: Optional[Dict[str, Any]] = None,
     ) -> None:
-        # Transition: IDLE -> LISTENING -> UNDERSTANDING
-        self.state_machine.transition(PlutoState.LISTENING)
-        
-        # Get context summary for LLM
-        context_summary = self.context_manager.get_context_summary()
-        
-        # Merge legacy tool registry with V2 tools
-        tools = tool_registry.get_tool_definitions()
-        
-        # Add V2 tools (terminal-first) to the tool list
-        v2_schemas = self.tool_registry_v2.get_tool_schemas()
-        tools.extend(v2_schemas)
-        
-        history = list(session.history) if session else list(self.conversation_history)
-        history.append({"role": "user", "content": command})
-        
-        # Inject context into system prompt if available
+        session_id = session.id
+        sm = session.state_machine
+        push = push or session.push
+
+        async def emit(
+            state: PlutoState,
+            task: Optional[str] = None,
+            reason: Optional[str] = None,
+            data: Optional[Dict[str, Any]] = None,
+            force: bool = False,
+        ) -> bool:
+            ok = sm.transition(state, reason=reason, force=force)
+            if ok:
+                await push(AgentStateEvent(
+                    type="agent_state", state=state.value, task=task,
+                    data=data, session_id=session_id,
+                ))
+            return ok
+
+        # A previous REST/WS run may have left the machine mid-task.
+        if sm.is_busy():
+            await push(AgentStateEvent(
+                type="agent_state", state="error",
+                error="PLUTO is still busy with the previous command. Please wait.",
+                session_id=session_id,
+            ))
+            return
+
+        # Enter the task from wherever we were (IDLE or LISTENING). Any other
+        # state means a previous run left the machine mid-task; recover first.
+        current = sm.get_current_state()
+        if current == PlutoState.IDLE:
+            sm.transition(PlutoState.LISTENING, reason="command_start")
+        elif current not in (PlutoState.LISTENING,):
+            sm.transition(PlutoState.LISTENING, reason="command_start_recovery", force=True)
+
+        context_manager.get_or_create_context(session_id)
+        context_manager.begin_task(session_id, command)
+        if context:
+            context_manager.update_context(session_id, context)
+
+        # ------------------------------------------------------------------
+        # Build messages: system prompt + persisted history + new command
+        # ------------------------------------------------------------------
+        context_summary = context_manager.get_context_summary(session_id)
         enhanced_system_prompt = self.system_prompt
-        if context_summary:
+        if context_summary and context_summary != "No active session context.":
             enhanced_system_prompt += f"\n\nCURRENT CONTEXT:\n{context_summary}"
-        
+
+        history = list(session.history)
+        user_content: str = command
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": enhanced_system_prompt},
             *history,
+            {"role": "user", "content": user_content},
         ]
 
-        # Transition: LISTENING -> UNDERSTANDING
-        self.state_machine.transition(PlutoState.UNDERSTANDING)
-        await push(AgentStateEvent(
-            type="agent_state",
-            state="understanding",
-            task="Parsing natural language request...",
-        ))
+        tools = self._registry.get_tool_schemas()
+
+        await emit(PlutoState.UNDERSTANDING, "Parsing your request...")
 
         final_text: Optional[str] = None
         reasoning_pass = False
-        step_counter = 0
+        task_failed = False
         cancelled = False
+        step_counter = 0
+        failure_detail: Optional[str] = None
 
-        for iteration in range(max(1, settings.pluto_max_iterations)):
-            if reasoning_pass:
-                # Transition: VERIFYING -> THINKING (reasoning about next step)
-                self.state_machine.transition(PlutoState.THINKING)
-                await push(AgentStateEvent(
-                    type="agent_state",
-                    state="reasoning",
-                    task="Observing result, deciding the next step...",
-                ))
-            else:
-                # Transition: UNDERSTANDING -> THINKING
-                self.state_machine.transition(PlutoState.THINKING)
-                await push(AgentStateEvent(
-                    type="agent_state",
-                    state="thinking",
-                    task="Analyzing request & selecting the right tool...",
-                ))
+        try:
+            for iteration in range(max(1, settings.pluto_max_iterations)):
+                # --- think -------------------------------------------------
+                await emit(
+                    PlutoState.THINKING,
+                    "Reasoning about the next step..."
+                    if reasoning_pass else "Analyzing your request...",
+                    reason="llm_start",
+                )
 
-            response: LLMResponse = await gpt_oss_client.chat(messages, tools)
+                response = await gpt_oss_client.chat(messages, tools)
 
-            if response.tool_calls:
-                # Transition: THINKING -> PLANNING
-                self.state_machine.transition(PlutoState.PLANNING)
-                await push(AgentStateEvent(
-                    type="agent_state",
-                    state="planning",
-                    task=f"Planning {len(response.tool_calls)} action(s)...",
-                ))
+                if response.finish_reason == "error":
+                    raise RuntimeError(
+                        response.error or "The AI service could not be reached."
+                    )
 
-                # Build execution steps (unique ids) + assistant tool_calls msg
+                if not response.tool_calls:
+                    final_text = (response.content or "Done.").strip()
+                    messages.append({"role": "assistant", "content": final_text})
+                    break
+
+                # --- plan --------------------------------------------------
+                await emit(
+                    PlutoState.PLANNING,
+                    f"Planning {len(response.tool_calls)} action(s)...",
+                )
+
                 assistant_msg: Dict[str, Any] = {
                     "role": "assistant",
                     "content": response.content,
                     "tool_calls": [],
                 }
-                step_meta: Dict[str, Dict[str, str]] = {}
                 for i, tc in enumerate(response.tool_calls):
-                    sid = f"s{step_counter}"
-                    step_counter += 1
                     tc_id = tc.id or f"call_{iteration}_{i}"
-                    label = self._step_label(tc)
-                    step_meta[tc_id] = {"id": sid, "label": label}
                     assistant_msg["tool_calls"].append({
                         "id": tc_id,
                         "type": "function",
-                        "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments),
+                        },
                     })
-                    # Emit step once (planning view) as a fresh object.
-                    await push(AgentStateEvent(
-                        type="execution_step",
-                        step=ExecutionStep(id=sid, label=label, status="pending"),
-                    ))
-
                 messages.append(assistant_msg)
 
-                # Execute each tool call in this batch
+                # --- execute each planned tool ------------------------------
                 for i, tc in enumerate(response.tool_calls):
                     tc_id = tc.id or f"call_{iteration}_{i}"
-                    sm = step_meta.get(tc_id, {"id": "s0", "label": f"Run {tc.name}"})
+                    step_id = f"s{step_counter}"
+                    step_counter += 1
+                    label = self._step_label(tc)
 
-                    # Check if tool exists in V2 registry (terminal-first tools)
-                    tool_v2 = self.tool_registry_v2.get_tool(tc.name)
-                    
-                    if tool_v2:
-                        # Use V2 tool execution with safety checks
-                        permission = tool_v2.safety_level.value
-                    else:
-                        # Fallback to legacy tool permission
-                        permission = tool_registry.get_permission_level(tc.name)
-                    
-                    if permission == "BLOCKED" or permission == "dangerous":
+                    tool = self._registry.get_tool(tc.name)
+                    if tool is None:
+                        task_failed = True
+                        failure_detail = f"The action '{tc.name}' is not something I can do."
                         await push(AgentStateEvent(
-                            type="agent_state",
-                            state="error",
-                            error=f"The tool '{tc.name}' is blocked by security policy.",
+                            type="execution_step",
+                            step=ExecutionStep(
+                                id=step_id, label=f"Run {tc.name}",
+                                status="error", detail=failure_detail,
+                            ),
+                            session_id=session_id,
                         ))
-                        cancelled = True
                         break
 
-                    if permission == "CONFIRM_REQUIRED" or permission == "confirm":
+                    # Safety gate (unified registry refuses DANGEROUS itself)
+                    if tool.safety_level == SafetyLevel.CONFIRM_REQUIRED:
                         ok = await self._await_confirmation(push, session, tc)
                         if not ok:
-                            await push(AgentStateEvent(
-                                type="agent_state",
-                                state="error",
-                                error=f"Action '{tc.name}' was cancelled by the user.",
-                            ))
                             cancelled = True
+                            await push(AgentStateEvent(
+                                type="agent_state", state="error",
+                                error=f"I cancelled the action '{label}' because it needs your approval.",
+                                session_id=session_id,
+                            ))
                             break
 
-                    # Transition: PLANNING -> EXECUTING
-                    self.state_machine.transition(PlutoState.EXECUTING)
-                    await push(AgentStateEvent(
-                        type="agent_state",
-                        state="executing",
-                        task=f"Executing {tc.name}...",
-                        data={"tool": tc.name, "arguments": tc.arguments},
-                    ))
-                    # Fresh object per emission (status can't corrupt earlier events).
+                    await emit(
+                        PlutoState.EXECUTING,
+                        f"Executing: {label}",
+                        reason="tool_execute",
+                    )
                     await push(AgentStateEvent(
                         type="execution_step",
-                        step=ExecutionStep(id=sm["id"], label=sm["label"], status="current"),
+                        step=ExecutionStep(id=step_id, label=label, status="current"),
+                        session_id=session_id,
                     ))
 
-                    # Execute tool (try V2 first, fallback to legacy)
-                    if tool_v2:
-                        result = await self.tool_registry_v2.execute_tool(
-                            tc.name,
-                            tc.arguments,
-                            skip_safety_check=True  # Already checked above
-                        )
-                        # Update context with tool execution
-                        action = Action(
-                            tool=tc.name,
-                            parameters=tc.arguments,
-                            result=result.message,
-                            success=result.success
-                        )
-                        self.context_manager.add_action(action)
-                        
-                        # Update context from tool result
-                        if result.context_updates:
-                            self.context_manager.update_context(result.context_updates)
-                    else:
-                        # Legacy tool execution
-                        result = await tool_registry.execute_tool(tc.name, **tc.arguments)
+                    # Real execution (the gate already ran above, so the
+                    # registry is told the confirmation is handled).
+                    result = await self._registry.execute_tool(
+                        tc.name, tc.arguments, skip_safety_check=True
+                    )
 
-                    # Transition: EXECUTING -> VERIFYING
-                    self.state_machine.transition(PlutoState.VERIFYING)
-                    
-                    # Verify result if V2 tool
-                    if tool_v2 and result.success:
-                        verified = await self.tool_registry_v2.verify_tool_result(
+                    # Verification (an explicit post-check when the tool has one)
+                    verified: Optional[bool] = result.verification_passed
+                    if result.success and verified is None:
+                        verified = await self._registry.verify_tool_result(
                             tc.name, result, tc.arguments
                         )
                         result.verification_passed = verified
-                        logger.info(
-                            "tool_verified",
-                            tool=tc.name,
-                            success=result.success,
-                            verified=verified
-                        )
+                        if not verified:
+                            result.success = False
+                            result.error = result.error or "Verification failed after execution."
+                            result.message = f"Executed but could not be verified: {result.message}"
 
+                    # Record the outcome truthfully.
+                    context_manager.record_action(
+                        session_id,
+                        tool=tc.name,
+                        parameters=tc.arguments,
+                        result=result.message,
+                        success=result.success,
+                    )
+                    if result.context_updates:
+                        context_manager.update_context(session_id, result.context_updates)
+
+                    sm.transition(PlutoState.VERIFYING, reason="tool_verify")
                     await push(AgentStateEvent(
                         type="execution_step",
                         step=ExecutionStep(
-                            id=sm["id"],
-                            label=sm["label"],
+                            id=step_id, label=label,
                             status="completed" if result.success else "error",
-                            detail=result.message or (
-                                result.error.get("message") if result.error else None
-                            ),
+                            detail=result.message,
                         ),
+                        session_id=session_id,
                     ))
-
                     await push(AgentStateEvent(
                         type="activity",
                         activity=self._build_activity(tc, result),
+                        session_id=session_id,
                     ))
 
                     messages.append({
@@ -372,248 +409,303 @@ Respond naturally and helpfully."""
                         "content": self._summarise_result(result),
                     })
 
-                if cancelled:
-                    # Transition back to IDLE on cancellation
-                    self.state_machine.transition(PlutoState.IDLE)
+                    if not result.success:
+                        task_failed = True
+                        failure_detail = (
+                            result.error or result.message or "the action failed"
+                        )
+                        break
+                    if cancelled:
+                        break
+
+                if task_failed or cancelled:
                     break
 
-                # Observe the outcome, then Reason on the next pass.
-                # State remains in VERIFYING during observation
+                # --- observe + reason for the next pass ---------------------
+                sm.transition(PlutoState.OBSERVING, reason="tool_observe")
                 await push(AgentStateEvent(
-                    type="agent_state",
-                    state="observing",
-                    task="Checking the result and verifying the outcome...",
+                    type="agent_state", state="observing",
+                    task="Checking the result...", session_id=session_id,
+                ))
+                sm.transition(PlutoState.REASONING, reason="tool_reason")
+                await push(AgentStateEvent(
+                    type="agent_state", state="reasoning",
+                    task="Verifying and deciding the next step...", session_id=session_id,
                 ))
                 reasoning_pass = True
                 continue
 
-            # No tool call => final natural-language answer.
-            final_text = response.content or "Done."
-            messages.append({"role": "assistant", "content": final_text})
-            break
-
-        if final_text is None:
-            final_text = "Task complete. Anything else?"
-            messages.append({"role": "assistant", "content": final_text})
-
-        # Persist context (system message excluded) so multi-turn commands keep context.
-        new_history = [m for m in messages if m.get("role") != "system"]
-        if session:
-            session.history = new_history
-        else:
-            self.conversation_history = new_history
-
-        # If the user rejected/cancelled the action, don't announce a fake
-        # success — just return to LISTENING so the loop continues.
-        if cancelled:
-            self.state_machine.transition(PlutoState.LISTENING)
-            if settings.pluto_auto_listen:
-                await push(AgentStateEvent(
-                    type="agent_state",
-                    state="listening",
-                    task="Ready for your next command.",
-                ))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.exception("agent_loop_error", session=session_id, error=str(e))
+            await self._fail_task(session, f"I hit an error: {e}", push=push)
+            context_manager.end_task(session_id, success=False)
             return
 
-        # SUCCESS - Transition to SPEAKING
-        self.state_machine.transition(PlutoState.SPEAKING)
+        # ------------------------------------------------------------------
+        # Persist conversation history (exclude the injected system message).
+        # ------------------------------------------------------------------
+        session.history = [m for m in messages if m.get("role") != "system"]
+
+        if task_failed:
+            context_manager.end_task(session_id, success=False)
+            await self._fail_task(session, detail=failure_detail, push=push)
+            return
+
+        if cancelled:
+            context_manager.end_task(session_id, success=False)
+            sm.transition(PlutoState.LISTENING, reason="after_cancel", force=True)
+            await push(AgentStateEvent(
+                type="agent_state", state="listening",
+                task="Ready for your next command.", session_id=session_id,
+            ))
+            return
+
+        if final_text is None:
+            final_text = "Done. Anything else?"
+
+        context_manager.end_task(session_id, success=True)
+
+        # ------------------------------------------------------------------
+        # Speak the final answer, then SUCCESS, then auto-return to LISTENING.
+        # ------------------------------------------------------------------
+        await emit(PlutoState.SPEAKING, "Speaking...", reason="final_answer")
+        audio_b64, engine = await self._synthesize_speech(final_text)
         await push(AgentStateEvent(
-            type="agent_state",
-            state="success",
-            task=final_text,
-            data={"response": final_text},
+            type="speak", text=final_text, audio=audio_b64, tts=engine,
+            session_id=session_id,
         ))
 
-        # SPEAK
-        if settings.pluto_auto_speak:
-            await push(AgentStateEvent(
-                type="agent_state",
-                state="speaking",
-                task="Speaking response...",
-            ))
-            audio_b64, engine = await self._synthesize_speech(final_text)
-            await push(AgentStateEvent(
-                type="speak",
-                text=final_text,
-                audio=audio_b64,
-                tts=engine,
-            ))
+        await emit(
+            PlutoState.SUCCESS,
+            final_text,
+            reason="task_success",
+            data={"response": final_text},
+        )
 
-        # AUTO-RETURN TO LISTENING (continuous loop)
-        # Transition: SPEAKING -> LISTENING
-        self.state_machine.transition(PlutoState.LISTENING)
+        sm.transition(PlutoState.LISTENING, reason="auto_listen")
         if settings.pluto_auto_listen:
             await push(AgentStateEvent(
-                type="agent_state",
-                state="listening",
-                task="Ready for your next command.",
+                type="agent_state", state="listening",
+                task="Ready for your next command.", session_id=session_id,
             ))
 
-    # ------------------------------------------------------------------
+    # ==================================================================
+    # Failure reporting (honest, recoverable)
+    # ==================================================================
+    async def _fail_task(
+        self, session: Session, detail: Optional[str] = None, push=None
+    ) -> None:
+        """Emit an honest error, speak it, and return to LISTENING.
+
+        ``push`` defaults to ``session.push``; REST mode passes the local
+        collector so the events are included in the CommandResponse.
+        """
+        sm = session.state_machine
+        push = push or session.push
+        if detail:
+            message = f"I couldn't complete that: {detail}"
+        else:
+            message = "Something went wrong while carrying out that command."
+        message = message[:400]
+        sm.transition(PlutoState.ERROR, reason="task_failed", force=True)
+        await push(AgentStateEvent(
+            type="agent_state", state="error",
+            error=message, task=message,
+            data={"response": message}, session_id=session.id,
+        ))
+        # Say it out loud too, then recover to LISTENING so the loop continues.
+        if settings.pluto_auto_speak:
+            audio_b64, engine = await self._synthesize_speech(message)
+            await push(AgentStateEvent(
+                type="speak", text=message, audio=audio_b64, tts=engine,
+                session_id=session.id,
+            ))
+        sm.transition(PlutoState.LISTENING, reason="error_recovery", force=True)
+        if settings.pluto_auto_listen:
+            await push(AgentStateEvent(
+                type="agent_state", state="listening",
+                task="Ready for your next command.", session_id=session.id,
+            ))
+
+    # ==================================================================
     # Confirmation gate
-    # ------------------------------------------------------------------
+    # ==================================================================
     async def _await_confirmation(
-        self, push: PushEvent, session: Optional[Session], tc: LLMToolCall
+        self, push, session: Session, tc: LLMToolCall
     ) -> bool:
         preview = self._build_preview(tc)
-        await push(AgentStateEvent(type="action_preview", preview=preview))
-        if session is None:
-            # REST fallback auto-approves dangerous actions.
-            return True
+        if getattr(session, "confirmation_available", True) is False:
+            # No human attached (REST fallback): cannot approve.
+            await push(AgentStateEvent(
+                type="action_preview", preview=preview, session_id=session.id
+            ))
+            return False
+        # Arm the gate BEFORE announcing the preview so an immediate
+        # confirm/reject from the client can never be lost to a race.
         session.require_confirmation(tc.name)
+        await push(AgentStateEvent(
+            type="action_preview", preview=preview, session_id=session.id
+        ))
         return await session.wait_for_confirmation()
 
-    # ------------------------------------------------------------------
+    # ==================================================================
     # Speech
-    # ------------------------------------------------------------------
+    # ==================================================================
     async def _synthesize_speech(self, text: str) -> Tuple[Optional[str], str]:
-        """Synthesize speech using local offline TTS"""
-        try:
-            audio = await local_tts_client.text_to_speech(text)
-            if audio:
-                return base64.b64encode(audio).decode("utf-8"), "local_tts"
-            return None, "local_tts"
-        except Exception as e:
-            logger.error("tts_synthesis_error", error=str(e))
-            return None, "error"
+        """Return (base64 audio or None, engine name).
 
-    # ------------------------------------------------------------------
+        Order: ElevenLabs (when configured) -> local TTS -> browser TTS.
+        """
+        from app.voice.elevenlabs import elevenlabs_client
+        from app.voice.local_tts import local_tts_client
+
+        if not elevenlabs_client.mock_mode:
+            try:
+                audio, engine = await elevenlabs_client.synthesize(text)
+                if audio:
+                    return base64.b64encode(audio).decode("utf-8"), engine
+            except Exception as e:  # noqa: BLE001
+                logger.error("elevenlabs_synthesis_error", error=str(e))
+            return None, "browser"
+
+        if local_tts_client.can_use():
+            try:
+                audio = await local_tts_client.text_to_speech(text)
+                if audio:
+                    return base64.b64encode(audio).decode("utf-8"), "local_tts"
+            except Exception as e:  # noqa: BLE001
+                logger.error("local_tts_error", error=str(e))
+            return None, "browser"
+
+        return None, "browser"
+
+    # ==================================================================
     # Helpers
-    # ------------------------------------------------------------------
+    # ==================================================================
     @staticmethod
     def _step_label(tc: LLMToolCall) -> str:
-        # V2 Terminal-first tools
-        v2_labels = {
-            "open_application": lambda a: f"Launch {a.get('application', 'app')}",
+        labels = {
+            "open_application": lambda a: f"Open {a.get('application', 'app')}",
             "close_application": lambda a: f"Close {a.get('application', 'app')}",
             "switch_to_application": lambda a: f"Switch to {a.get('application', 'app')}",
             "list_running_applications": lambda a: "List running apps",
+            "open_url": lambda a: f"Open {a.get('url', '')}",
+            "browser_search": lambda a: f"Search '{a.get('query', '')}'",
+            "browser_click": lambda a: "Click element",
+            "browser_key": lambda a: f"Press {a.get('key', '')}",
+            "browser_type": lambda a: "Type text",
+            "browser_fullscreen": lambda a: "Fullscreen",
+            "browser_snapshot": lambda a: "Read page",
+            "send_message": lambda a: f"Send message to {a.get('recipient', '')}",
+            "open_chat_app": lambda a: f"Open {a.get('app', '')}",
             "open_file": lambda a: f"Open file {a.get('path', '')}",
             "open_folder": lambda a: f"Open folder {a.get('path', '')}",
             "find_files": lambda a: f"Find '{a.get('query', '')}'",
             "create_folder": lambda a: f"Create folder {a.get('path', '')}",
+            "create_file": lambda a: f"Create file {a.get('path', '')}",
+            "read_file": lambda a: f"Read {a.get('path', '')}",
+            "list_directory": lambda a: f"List {a.get('path', '~')}",
+            "delete_file": lambda a: f"Delete {a.get('path', '')}",
             "move_file": lambda a: f"Move {a.get('source', '')}",
             "copy_file": lambda a: f"Copy {a.get('source', '')}",
-            "take_screenshot": lambda a: f"Take screenshot ({a.get('area', 'full')})",
-            "set_volume": lambda a: f"Set volume to {a.get('level', '')}",
-            "get_volume": lambda a: "Check volume",
+            "take_screenshot": lambda a: f"Screenshot ({a.get('area', 'full')})",
+            "set_volume": lambda a: f"Set volume {a.get('level', '')}",
+            "get_volume": lambda a: "Read volume",
             "copy_to_clipboard": lambda a: "Copy to clipboard",
-            "get_clipboard": lambda a: "Get clipboard",
+            "get_clipboard": lambda a: "Read clipboard",
+            "get_processes": lambda a: "List processes",
+            "kill_process": lambda a: f"Stop {a.get('process', '')}",
+            "execute_command": lambda a: f"Run command: {a.get('command', '')}",
         }
-        
-        # Legacy tools
-        labels = {
-            "open_url": lambda a: f"Open {a.get('url', '')} in browser",
-            "browser_navigate": lambda a: f"Navigate to {a.get('url', '')}",
-            "browser_click": lambda a: f"Click {a.get('selector', 'element')}",
-            "browser_key": lambda a: f"Press '{a.get('key', '')}'",
-            "browser_fullscreen": lambda a: "Enter fullscreen",
-            "browser_snapshot": lambda a: "Capture page snapshot",
-            "create_directory": lambda a: f"Create directory {a.get('path', '')}",
-            "create_file": lambda a: f"Create file {a.get('path', '')}",
-            "delete_file": lambda a: f"Delete {a.get('path', '')}",
-            "read_file": lambda a: f"Read {a.get('path', '')}",
-            "execute_command": lambda a: f"Run: {a.get('command', '')}",
-            "get_processes": lambda a: "Fetch running processes",
-        }
-        
-        # Try V2 first, then legacy
-        fn = v2_labels.get(tc.name) or labels.get(tc.name)
-        return fn(tc.arguments) if fn else f"Run {tc.name}"
+        fn = labels.get(tc.name)
+        try:
+            return fn(tc.arguments) if fn else f"Run {tc.name}"
+        except Exception:  # noqa: BLE001
+            return f"Run {tc.name}"
 
     @staticmethod
     def _build_preview(tc: LLMToolCall) -> ActionPreview:
         args = tc.arguments
         if tc.name == "delete_file":
             return ActionPreview(
-                type="file_delete",
-                title="Confirm File Deletion",
+                type="file_delete", title="Confirm File Deletion",
                 content=f"PLUTO wants to delete: {args.get('path')}",
-                path=args.get("path"),
-                requiresConfirmation=True,
+                path=args.get("path"), requiresConfirmation=True,
             )
         if tc.name == "execute_command":
             return ActionPreview(
-                type="command",
-                title="Confirm Terminal Command",
+                type="command", title="Confirm Terminal Command",
                 content=f"Execute: {args.get('command')}",
                 requiresConfirmation=True,
             )
+        if tc.name == "send_message":
+            return ActionPreview(
+                type="message", title="Confirm Message",
+                recipient=args.get("recipient"),
+                content=args.get("message"),
+                requiresConfirmation=True,
+            )
+        if tc.name in ("close_application", "kill_process", "move_file"):
+            return ActionPreview(
+                type="automation", title=f"Confirm {tc.name}",
+                content=json.dumps(args), requiresConfirmation=True,
+            )
         return ActionPreview(
-            type="automation",
-            title=f"Confirm {tc.name}",
-            content=json.dumps(args),
-            requiresConfirmation=True,
+            type="automation", title=f"Confirm {tc.name}",
+            content=json.dumps(args), requiresConfirmation=True,
         )
 
     @staticmethod
-    def _build_activity(tc: LLMToolCall, result: Any) -> Activity:
-        # V2 tool categories
-        v2_category_map = {
-            "open_application": "app",
-            "close_application": "app",
-            "switch_to_application": "app",
-            "list_running_applications": "app",
-            "open_file": "file",
-            "open_folder": "file",
-            "find_files": "file",
-            "create_folder": "file",
-            "move_file": "file",
-            "copy_file": "file",
-            "take_screenshot": "system",
-            "set_volume": "system",
-            "get_volume": "system",
-            "copy_to_clipboard": "system",
-            "get_clipboard": "system",
-        }
-        
-        # Legacy categories
+    def _build_activity(tc: LLMToolCall, result: ToolResult) -> Activity:
         category_map = {
-            "open_url": "app",
-            "browser_navigate": "browser",
-            "browser_click": "browser",
-            "browser_key": "browser",
-            "browser_fullscreen": "browser",
+            "open_application": "app", "close_application": "app",
+            "switch_to_application": "app", "list_running_applications": "app",
+            "open_url": "browser", "browser_search": "browser",
+            "browser_click": "browser", "browser_key": "browser",
+            "browser_type": "browser", "browser_fullscreen": "browser",
             "browser_snapshot": "browser",
-            "create_file": "file",
-            "create_directory": "file",
-            "delete_file": "file",
-            "read_file": "file",
-            "execute_command": "system",
-            "get_processes": "system",
+            "open_file": "file", "open_folder": "file", "find_files": "file",
+            "create_folder": "file", "create_file": "file", "read_file": "file",
+            "list_directory": "file", "delete_file": "file", "move_file": "file",
+            "copy_file": "file",
+            "take_screenshot": "system", "set_volume": "system",
+            "get_volume": "system", "copy_to_clipboard": "system",
+            "get_clipboard": "system", "get_processes": "system",
+            "kill_process": "system", "execute_command": "system",
+            "send_message": "message", "open_chat_app": "message",
         }
-        
-        # Merge maps
-        all_categories = {**category_map, **v2_category_map}
-        
-        title = (result.message if result.message else f"Executed {tc.name}").split(".")[0]
+        title = (result.message or f"Executed {tc.name}").split(".")[0]
         return Activity(
-            id=f"act-{int(time.time() * 1000)}",
+            id=f"act-{int(time.time() * 1000)}-{abs(hash(tc.name + str(tc.arguments))) % 100000}",
             title=title,
-            description=result.message or "",
+            description=(result.message or "")[:300],
             timestamp="Just now",
             status="success" if result.success else "error",
-            category=all_categories.get(tc.name, "automation"),
+            category=category_map.get(tc.name, "automation"),
         )
 
     @staticmethod
-    def _summarise_result(result: Any) -> str:
+    def _summarise_result(result: ToolResult) -> str:
+        """A compact observation fed back to the LLM."""
         if result.success:
-            data = result.data or {}
-            summary = result.message or "Success"
-            # Keep key info short so context stays lean.
-            if result.tool == "get_processes":
-                summary = f"Retrieved {len(data.get('processes', []))} processes."
-            elif result.tool in ("create_file", "read_file", "create_directory", "delete_file"):
-                summary = f"{result.message} path={data.get('path', '')}"
-            elif result.tool == "execute_command":
-                summary = f"returncode={data.get('returncode')} stdout={str(data.get('stdout',''))[:400]}"
-            return (summary or "OK")[:600]
-        return "ERROR: " + (result.error.get("message") if result.error else "unknown error")
+            parts = [result.message or "OK"]
+            if result.data:
+                if "url" in result.data:
+                    parts.append(f"url={result.data['url']}")
+                if "title" in result.data:
+                    parts.append(f"title={result.data['title']}")
+                if "count" in result.data:
+                    parts.append(f"count={result.data['count']}")
+                if "path" in result.data:
+                    parts.append(f"path={result.data['path']}")
+            return (" | ".join(parts))[:600]
+        return f"ERROR ({result.error_code or 'failure'}): {result.error or result.message}"
 
     def reset(self) -> None:
-        """Reset conversation history."""
-        self.conversation_history = []
+        """Compatibility hook: clears nothing global (state is per-session)."""
+        logger.info("orchestrator_reset_requested")
 
 
 # Singleton instance

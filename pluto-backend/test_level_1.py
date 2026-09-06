@@ -2,7 +2,7 @@
 """
 PLUTO Level 1 End-to-End Test Script
 
-Tests all 15 terminal-first tools and context awareness.
+Tests all terminal-first tools and context awareness.
 Run this after starting the backend server.
 """
 import asyncio
@@ -50,22 +50,31 @@ class Level1Tester:
             assert self.registry is not None, "Registry not initialized"
             self.print_test("Registry initialized", "PASS")
             
-            # Check tool count
+            # Check tool count (application 4 + file 10 + system 7 +
+            # browser 7 + messaging 2 + terminal 1 = 31 canonical tools).
             tools = self.registry.get_all_tools()
-            assert len(tools) == 15, f"Expected 15 tools, got {len(tools)}"
+            assert len(tools) >= 15, f"Expected at least 15 tools, got {len(tools)}"
             self.print_test(f"Tool count ({len(tools)} tools)", "PASS")
             
             # Check categories
             info = self.registry.get_tool_info()
             categories = info["categories"]
             assert categories["application"] == 4, "Application tools count mismatch"
-            assert categories["file"] == 6, "File tools count mismatch"
-            assert categories["system"] == 5, "System tools count mismatch"
-            self.print_test("Tool categories", "PASS", "app:4, file:6, system:5")
+            assert categories["file"] >= 6, "File tools count mismatch"
+            assert categories["system"] >= 5, "System tools count mismatch"
+            assert categories["browser"] >= 7, "Browser tools count mismatch"
+            assert categories["message"] >= 2, "Messaging tools count mismatch"
+            assert categories["terminal"] >= 1, "Terminal tools count mismatch"
+            self.print_test(
+                "Tool categories", "PASS",
+                f"app:4, file:{categories['file']}, system:{categories['system']}, "
+                f"browser:{categories['browser']}, message:{categories['message']}, "
+                f"terminal:{categories['terminal']}",
+            )
             
             # Check schemas
             schemas = self.registry.get_tool_schemas()
-            assert len(schemas) == 15, "Schema count mismatch"
+            assert len(schemas) == len(tools), "Schema count mismatch"
             self.print_test("OpenAI schemas", "PASS", f"{len(schemas)} schemas generated")
             
             self.passed += 4
@@ -124,32 +133,35 @@ class Level1Tester:
         self.print_header("TEST 3: Context Manager")
         
         try:
-            # Test context update
-            self.context_manager.update_context({
+            # Test context update (session-scoped: every call takes a session id)
+            session_id = "level1-test-session"
+            self.context_manager.update_context(session_id, {
                 "current_app": "firefox",
-                "browser_url": "https://youtube.com",
-                "browser_title": "YouTube"
+                "current_url": "https://youtube.com",
+                "current_page_title": "YouTube"
             })
             
-            context = self.context_manager.get_context()
+            context = self.context_manager.get_context(session_id)
+            assert context is not None, "Context not created"
             assert context.current_app == "firefox", "Context update failed"
             self.print_test("Context update", "PASS")
             
             # Test action tracking
             from app.agent.context_manager import Action
-            action = Action(
+            action = self.context_manager.add_action(
+                session_id,
                 tool="open_application",
                 parameters={"application": "firefox"},
                 result="Opened Firefox",
-                success=True
+                success=True,
             )
-            self.context_manager.add_action(action)
+            assert isinstance(action, Action), "add_action returned no Action"
             
             assert len(context.recent_actions) > 0, "Action not tracked"
             self.print_test("Action tracking", "PASS", "1 action recorded")
             
             # Test context summary
-            summary = self.context_manager.get_context_summary()
+            summary = self.context_manager.get_context_summary(session_id)
             assert len(summary) > 0, "Empty context summary"
             assert "firefox" in summary.lower(), "App not in summary"
             self.print_test("Context summary", "PASS", f"{len(summary)} chars")

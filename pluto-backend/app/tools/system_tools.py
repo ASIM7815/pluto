@@ -1,403 +1,400 @@
-"""System Control Tools - Screenshot, volume, clipboard using terminal commands"""
-import shlex
+"""System Control Tools - real system metrics, processes, volume, clipboard,
+screenshot. Every tool reports an honest ToolResult with verification."""
+from __future__ import annotations
+
+import asyncio
 import os
 from datetime import datetime
-from typing import Optional, Dict, Any
-from app.tools.terminal_base import TerminalTool, ToolResult, SafetyLevel, VerificationMixin
+from typing import Any, Dict, List, Optional
+
+import psutil
+
 from app.core.logging import get_logger
+from app.tools.terminal_base import (
+    TerminalTool,
+    ToolResult,
+    SafetyLevel,
+    VerificationMixin,
+    command_exists,
+    has_display,
+    human_display_hint,
+)
 
 logger = get_logger(__name__)
 
 
-class TakeScreenshotTool(TerminalTool, VerificationMixin):
-    """Take a screenshot"""
-    
-    name = "take_screenshot"
-    description = "Takes a screenshot of the entire screen or a specific area. Saves to Pictures folder."
+# ---------------------------------------------------------------------------
+# System metrics helpers (used by REST routes AND as a tool)
+# ---------------------------------------------------------------------------
+async def collect_system_metrics() -> Dict[str, Any]:
+    """Collect CPU/RAM/storage metrics (best-effort, always returns dict)."""
+    try:
+        cpu_percent = int(psutil.cpu_percent(interval=0.1))
+    except Exception:  # noqa: BLE001
+        cpu_percent = 0
+    try:
+        memory = psutil.virtual_memory()
+        ram = int(memory.percent)
+    except Exception:  # noqa: BLE001
+        ram = 0
+    try:
+        disk = psutil.disk_usage(os.path.expanduser("~") or "/")
+        storage = int(disk.percent)
+    except Exception:  # noqa: BLE001
+        storage = 0
+
+    gpu = temp = None
+    try:
+        temps = psutil.sensors_temperatures()
+        if temps:
+            for entries in temps.values():
+                if entries:
+                    temp = int(entries[0].current)
+                    break
+    except Exception:  # noqa: BLE001
+        pass
+
+    net_up = net_down = None
+    try:
+        net = psutil.net_io_counters()
+        net_up = f"{net.bytes_sent / (1024 ** 2):.1f} MB"
+        net_down = f"{net.bytes_recv / (1024 ** 2):.1f} MB"
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {
+        "cpu": cpu_percent,
+        "ram": ram,
+        "storage": storage,
+        "gpu": gpu,
+        "temp": temp,
+        "networkUp": net_up,
+        "networkDown": net_down,
+    }
+
+
+async def collect_system_info() -> Dict[str, Any]:
+    """Detailed system information."""
+    import platform
+
+    try:
+        boot = datetime.fromtimestamp(psutil.boot_time())
+        uptime_seconds = int((datetime.now() - boot).total_seconds())
+        hours, rem = divmod(uptime_seconds, 3600)
+        minutes, _ = divmod(rem, 60)
+        uptime = f"{hours}h {minutes}m"
+    except Exception:  # noqa: BLE001
+        uptime = "unknown"
+
+    return {
+        "os": f"{platform.system()} {platform.machine()}",
+        "distro": platform.platform(),
+        "host": platform.node(),
+        "uptime": uptime,
+        "securityStatus": "Sandboxed & permission-gated",
+        "voiceEngine": "ElevenLabs / local / browser TTS",
+        "llmEngine": "GPT-OSS 120B (OpenAI-compatible)",
+    }
+
+
+def _running_processes(limit: int = 25) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "status"]):
+        try:
+            info = proc.info
+            rows.append({
+                "pid": info["pid"],
+                "name": info["name"] or "?",
+                "cpu_percent": round(info["cpu_percent"] or 0.0, 1),
+                "memory_percent": round(info["memory_percent"] or 0.0, 1),
+                "status": info["status"] or "?",
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    rows.sort(key=lambda r: r["cpu_percent"], reverse=True)
+    return rows[:max(1, min(int(limit), 100))]
+
+
+class GetProcessesTool(TerminalTool):
+    """List running processes sorted by CPU."""
+
+    name = "get_processes"
+    description = "Lists the top running processes by CPU usage."
     safety_level = SafetyLevel.SAFE
-    
+    category = "system"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "description": "Max processes", "default": 10}},
+            "required": [],
+        }
+
+    async def execute(self, limit: int = 10, **kwargs) -> ToolResult:
+        rows = _running_processes(limit or 10)
+        summary = ", ".join(f"{r['name']} ({r['cpu_percent']}%)" for r in rows[:6])
+        return ToolResult.ok(
+            self.name,
+            message=f"Retrieved {len(rows)} processes. Top: {summary}",
+            data={"processes": rows, "count": len(rows)},
+        )
+
+
+class KillProcessTool(TerminalTool):
+    """Kill a process by name (confirmation required)."""
+
+    name = "kill_process"
+    description = "Terminates a running process by name. Requires user confirmation."
+    safety_level = SafetyLevel.CONFIRM_REQUIRED
+    category = "system"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": "Custom filename (optional). Auto-generated if not provided.",
-                },
-                "area": {
-                    "type": "string",
-                    "description": "Screenshot area: 'full' (entire screen), 'select' (user selects area), or 'window' (active window)",
-                    "enum": ["full", "select", "window"],
-                    "default": "full"
-                }
+                "process": {"type": "string", "description": "Process name to kill"},
+                "force": {"type": "boolean", "default": False},
             },
-            "required": []
+            "required": ["process"],
         }
-    
-    async def execute(
-        self,
-        filename: Optional[str] = None,
-        area: str = "full",
-        **kwargs
-    ) -> ToolResult:
-        """
-        Take a screenshot
-        
-        Args:
-            filename: Custom filename (optional)
-            area: Screenshot area type
-            
-        Returns:
-            ToolResult with screenshot path
-        """
-        # Check if scrot is installed
-        has_scrot = await self.check_command_exists("scrot")
-        
-        if not has_scrot:
-            return ToolResult(
-                success=False,
-                message="Screenshot tool (scrot) not installed. Install with: sudo apt install scrot",
-                error="scrot command not found"
+
+    async def execute(self, process: str, force: bool = False, **kwargs) -> ToolResult:
+        result = await self.run_command(
+            ["pkill", "-9" if force else "-TERM", "-x", process], check_exit_code=False
+        )
+        await asyncio.sleep(0.8)
+        still = await self.run_command(["pgrep", "-x", process], check_exit_code=False)
+        if still.success and still.output:
+            return ToolResult.fail(
+                self.name, f"{process} is still running.", error_code="KILL_FAILED"
             )
-        
-        # Generate filename if not provided
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"screenshot_{timestamp}.png"
-        
-        # Ensure .png extension
-        if not filename.endswith('.png'):
-            filename += '.png'
-        
-        # Save to Pictures folder
+        return ToolResult.ok(self.name, message=f"Stopped {process}.", verification_passed=True)
+
+
+class TakeScreenshotTool(TerminalTool, VerificationMixin):
+    """Take a screenshot (full/select/window)."""
+
+    name = "take_screenshot"
+    description = (
+        "Takes a screenshot of the screen ('full'), a selected area ('select') "
+        "or the active window ('window') and saves it to ~/Pictures."
+    )
+    safety_level = SafetyLevel.SAFE
+    category = "system"
+
+    def get_parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Custom filename (optional)"},
+                "area": {
+                    "type": "string", "enum": ["full", "select", "window"], "default": "full",
+                },
+            },
+            "required": [],
+        }
+
+    async def execute(self, filename: Optional[str] = None, area: str = "full", **kwargs) -> ToolResult:
+        if not command_exists("scrot"):
+            return ToolResult.fail(
+                self.name,
+                "The screenshot tool 'scrot' is not installed. Install it with your package manager.",
+                error_code="MISSING_DEPENDENCY",
+            )
+        if not has_display():
+            return ToolResult.fail(self.name, human_display_hint(), error_code="NO_DISPLAY")
+
         pictures_dir = os.path.expanduser("~/Pictures")
-        screenshot_path = os.path.join(pictures_dir, filename)
-        
-        # Ensure Pictures directory exists
-        await self.run_command(["mkdir", "-p", pictures_dir])
-        
-        # Build scrot command based on area
-        scrot_cmd = ["scrot"]
-        
+        os.makedirs(pictures_dir, exist_ok=True)
+        name = filename or f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        if not name.endswith(".png"):
+            name += ".png"
+        dest = os.path.join(pictures_dir, name)
+
+        cmd = ["scrot"]
         if area == "select":
-            # User selects area with mouse
-            scrot_cmd.extend(["-s", "-f"])  # -s: select area, -f: freeze screen
+            cmd += ["-s", "-f"]
         elif area == "window":
-            # Active window only
-            scrot_cmd.extend(["-u"])  # -u: currently focused window
-        # else: full screen (default, no flags needed)
-        
-        scrot_cmd.append(screenshot_path)
-        
-        # Take screenshot
-        result = await self.run_command(scrot_cmd, timeout=15)  # Allow time for selection
-        
-        if result.success:
-            # Verify file was created
-            file_exists = await self.verify_file_created(screenshot_path, timeout=2)
-            
-            if file_exists:
-                logger.info("screenshot_taken", path=screenshot_path, area=area)
-                return ToolResult(
-                    success=True,
-                    message=f"Screenshot saved to {filename}",
-                    output=screenshot_path,
-                    verification_passed=True,
-                    data={
-                        "path": screenshot_path,
-                        "filename": filename,
-                        "area": area
-                    },
-                    context_updates={"last_screenshot": screenshot_path}
-                )
-            else:
-                return ToolResult(
-                    success=False,
-                    message="Screenshot command ran but file was not created",
-                    error="File not found after screenshot",
-                    verification_passed=False
-                )
-        else:
-            return ToolResult(
-                success=False,
-                message=f"Failed to take screenshot: {result.error}",
-                error=result.error
+            cmd += ["-u"]
+        cmd.append(dest)
+
+        result = await self.run_command(cmd, timeout=20, check_exit_code=False)
+        if not result.success or not os.path.isfile(dest):
+            return ToolResult.fail(
+                self.name, "The screenshot could not be captured.",
+                error=result.error, error_code="SCREENSHOT_FAILED",
             )
+        return ToolResult.ok(
+            self.name,
+            message=f"Screenshot saved to {dest}",
+            data={"path": dest, "filename": name},
+            verification_passed=True,
+            context_updates={"last_screenshot": dest},
+        )
 
 
 class SetVolumeTool(TerminalTool):
-    """Set system volume"""
-    
+    """Set system volume."""
+
     name = "set_volume"
-    description = "Sets the system audio volume. Use percentage (0-100) or keywords like 'mute', 'unmute'."
+    description = "Sets the system volume (0-100) or mutes/unmutes audio."
     safety_level = SafetyLevel.SAFE
-    
+    category = "system"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "level": {
                     "type": "string",
-                    "description": "Volume level: number 0-100, or 'mute', 'unmute'"
+                    "description": "0-100, or 'mute' / 'unmute'",
                 }
             },
-            "required": ["level"]
+            "required": ["level"],
         }
-    
+
     async def execute(self, level: str, **kwargs) -> ToolResult:
-        """
-        Set volume
-        
-        Args:
-            level: Volume level or command
-            
-        Returns:
-            ToolResult
-        """
-        # Check if pactl is available
-        has_pactl = await self.check_command_exists("pactl")
-        
-        if not has_pactl:
-            return ToolResult(
-                success=False,
-                message="Volume control (pactl/pulseaudio) not available. Install with: sudo apt install pulseaudio-utils",
-                error="pactl command not found"
+        if not command_exists("pactl"):
+            return ToolResult.fail(
+                self.name,
+                "Volume control needs 'pactl' (pipewire/pulseaudio utils), which is not installed.",
+                error_code="MISSING_DEPENDENCY",
             )
-        
-        level_lower = level.lower().strip()
-        
-        # Handle mute/unmute
-        if level_lower == "mute":
-            result = await self.run_command(
-                "pactl set-sink-mute @DEFAULT_SINK@ 1",
-                shell=True
+        raw = str(level or "").strip().lower()
+        if raw in ("mute", "muted"):
+            result = await self.run_command("pactl set-sink-mute @DEFAULT_SINK@ 1", shell=True)
+            if not result.success:
+                return ToolResult.fail(self.name, "Could not mute audio.", error_code="VOLUME_FAILED")
+            return ToolResult.ok(self.name, "Audio muted.", context_updates={"volume_muted": True})
+        if raw in ("unmute", "unmuted"):
+            result = await self.run_command("pactl set-sink-mute @DEFAULT_SINK@ 0", shell=True)
+            if not result.success:
+                return ToolResult.fail(self.name, "Could not unmute audio.", error_code="VOLUME_FAILED")
+            return ToolResult.ok(self.name, "Audio unmuted.", context_updates={"volume_muted": False})
+
+        try:
+            value = int(raw.rstrip("%"))
+        except ValueError:
+            return ToolResult.fail(
+                self.name, f"'{level}' is not a valid volume. Use 0-100, mute or unmute.",
+                error_code="BAD_ARGUMENTS",
             )
-            if result.success:
-                logger.info("volume_muted")
-                return ToolResult(
-                    success=True,
-                    message="Audio muted",
-                    context_updates={"volume_muted": True}
-                )
-        
-        elif level_lower == "unmute":
-            result = await self.run_command(
-                "pactl set-sink-mute @DEFAULT_SINK@ 0",
-                shell=True
-            )
-            if result.success:
-                logger.info("volume_unmuted")
-                return ToolResult(
-                    success=True,
-                    message="Audio unmuted",
-                    context_updates={"volume_muted": False}
-                )
-        
-        else:
-            # Set volume percentage
-            try:
-                volume_int = int(level_lower.rstrip('%'))
-                if volume_int < 0 or volume_int > 100:
-                    return ToolResult(
-                        success=False,
-                        message="Volume must be between 0 and 100",
-                        error="Invalid volume range"
-                    )
-                
-                result = await self.run_command(
-                    f"pactl set-sink-volume @DEFAULT_SINK@ {volume_int}%",
-                    shell=True
-                )
-                
-                if result.success:
-                    logger.info("volume_set", level=volume_int)
-                    return ToolResult(
-                        success=True,
-                        message=f"Volume set to {volume_int}%",
-                        context_updates={"volume_level": volume_int}
-                    )
-            except ValueError:
-                return ToolResult(
-                    success=False,
-                    message=f"Invalid volume level: {level}. Use 0-100 or 'mute'/'unmute'",
-                    error="Invalid volume format"
-                )
-        
-        return ToolResult(
-            success=False,
-            message=f"Failed to set volume: {result.error if 'result' in locals() else 'Unknown error'}",
-            error="Volume command failed"
+        if not 0 <= value <= 100:
+            return ToolResult.fail(self.name, "Volume must be between 0 and 100.", error_code="BAD_ARGUMENTS")
+
+        result = await self.run_command(
+            f"pactl set-sink-volume @DEFAULT_SINK@ {value}%", shell=True
+        )
+        if not result.success:
+            return ToolResult.fail(self.name, "Could not change the volume.", error_code="VOLUME_FAILED")
+        return ToolResult.ok(
+            self.name, f"Volume set to {value}%.",
+            context_updates={"volume_level": value, "volume_muted": False},
         )
 
 
 class GetVolumeTool(TerminalTool):
-    """Get current system volume"""
-    
+    """Get current volume."""
+
     name = "get_volume"
-    description = "Gets the current system audio volume level."
+    description = "Reads the current system volume level."
     safety_level = SafetyLevel.SAFE
-    
+    category = "system"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-    
+        return {"type": "object", "properties": {}, "required": []}
+
     async def execute(self, **kwargs) -> ToolResult:
-        """
-        Get current volume
-        
-        Returns:
-            ToolResult with volume info
-        """
-        # Get volume using pactl
+        if not command_exists("pactl"):
+            return ToolResult.fail(self.name, "'pactl' is not installed.", error_code="MISSING_DEPENDENCY")
         result = await self.run_command(
             "pactl get-sink-volume @DEFAULT_SINK@ | grep -Po '\\d+(?=%)' | head -1",
-            shell=True,
-            check_exit_code=False
+            shell=True, check_exit_code=False,
         )
-        
-        if result.success and result.output:
-            try:
-                volume = int(result.output.strip())
-                logger.info("volume_retrieved", level=volume)
-                return ToolResult(
-                    success=True,
-                    message=f"Current volume: {volume}%",
-                    output=str(volume),
-                    data={"volume": volume}
-                )
-            except ValueError:
-                pass
-        
-        return ToolResult(
-            success=False,
-            message="Could not retrieve volume",
-            error="Failed to parse volume output"
-        )
+        if result.output and result.output.strip().isdigit():
+            volume = int(result.output.strip())
+            return ToolResult.ok(
+                self.name, f"Current volume: {volume}%.",
+                data={"volume": volume}, output=str(volume),
+            )
+        return ToolResult.fail(self.name, "Could not determine the current volume.", error_code="VOLUME_READ_FAILED")
 
 
 class CopyToClipboardTool(TerminalTool):
-    """Copy text to clipboard"""
-    
+    """Copy text to clipboard."""
+
     name = "copy_to_clipboard"
-    description = "Copies text to the system clipboard. Use for sharing text between applications."
+    description = "Copies text to the system clipboard."
     safety_level = SafetyLevel.SAFE
-    
+    category = "system"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
-            "properties": {
-                "text": {
-                    "type": "string",
-                    "description": "Text to copy to clipboard"
-                }
-            },
-            "required": ["text"]
+            "properties": {"text": {"type": "string", "description": "Text to copy"}},
+            "required": ["text"],
         }
-    
+
     async def execute(self, text: str, **kwargs) -> ToolResult:
-        """
-        Copy text to clipboard
-        
-        Args:
-            text: Text to copy
-            
-        Returns:
-            ToolResult
-        """
-        # Check if xclip is installed
-        has_xclip = await self.check_command_exists("xclip")
-        
-        if not has_xclip:
-            return ToolResult(
-                success=False,
-                message="Clipboard tool (xclip) not installed. Install with: sudo apt install xclip",
-                error="xclip command not found"
+        tool = "xclip" if command_exists("xclip") else ("wl-copy" if command_exists("wl-copy") else None)
+        if tool is None:
+            return ToolResult.fail(
+                self.name,
+                "Clipboard support needs 'xclip' (X11) or 'wl-copy' (Wayland); neither is installed.",
+                error_code="MISSING_DEPENDENCY",
             )
-        
-        # Copy to clipboard using xclip
-        result = await self.run_command(
-            f"echo {shlex.quote(text)} | xclip -selection clipboard",
-            shell=True
-        )
-        
-        if result.success:
-            logger.info("clipboard_copied", length=len(text))
-            return ToolResult(
-                success=True,
-                message=f"Copied {len(text)} characters to clipboard",
-                data={"length": len(text), "preview": text[:50]}
+        import shlex
+        if tool == "xclip":
+            result = await self.run_command(
+                f"echo {shlex.quote(str(text))} | xclip -selection clipboard", shell=True
             )
         else:
-            return ToolResult(
-                success=False,
-                message=f"Failed to copy to clipboard: {result.error}",
-                error=result.error
+            result = await self.run_command(
+                f"echo {shlex.quote(str(text))} | wl-copy", shell=True
             )
+        if not result.success:
+            return ToolResult.fail(self.name, "Could not copy to clipboard.", error_code="CLIPBOARD_FAILED")
+        return ToolResult.ok(
+            self.name, f"Copied {len(str(text))} characters to the clipboard.",
+            data={"length": len(str(text))},
+        )
 
 
 class GetClipboardTool(TerminalTool):
-    """Get text from clipboard"""
-    
+    """Read clipboard content."""
+
     name = "get_clipboard"
-    description = "Gets text from the system clipboard. Use to retrieve copied content."
+    description = "Reads the current text from the system clipboard."
     safety_level = SafetyLevel.SAFE
-    
+    category = "system"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-    
+        return {"type": "object", "properties": {}, "required": []}
+
     async def execute(self, **kwargs) -> ToolResult:
-        """
-        Get clipboard content
-        
-        Returns:
-            ToolResult with clipboard text
-        """
-        # Check if xclip is installed
-        has_xclip = await self.check_command_exists("xclip")
-        
-        if not has_xclip:
-            return ToolResult(
-                success=False,
-                message="Clipboard tool (xclip) not installed. Install with: sudo apt install xclip",
-                error="xclip command not found"
-            )
-        
-        # Get clipboard content
-        result = await self.run_command(
-            "xclip -selection clipboard -o",
-            shell=True,
-            check_exit_code=False
-        )
-        
-        if result.success or result.output:
-            clipboard_text = result.output or ""
-            logger.info("clipboard_retrieved", length=len(clipboard_text))
-            return ToolResult(
-                success=True,
-                message=f"Retrieved {len(clipboard_text)} characters from clipboard",
-                output=clipboard_text,
-                data={"text": clipboard_text, "length": len(clipboard_text)}
-            )
+        if command_exists("xclip"):
+            result = await self.run_command("xclip -selection clipboard -o", check_exit_code=False)
+        elif command_exists("wl-paste"):
+            result = await self.run_command("wl-paste", check_exit_code=False)
         else:
-            return ToolResult(
-                success=False,
-                message="Clipboard is empty or could not be read",
-                error="No clipboard content"
+            return ToolResult.fail(
+                self.name, "Clipboard support needs 'xclip' or 'wl-paste'.", error_code="MISSING_DEPENDENCY"
             )
+        text = (result.output or "").strip()
+        if not result.success and not text:
+            return ToolResult.fail(self.name, "Clipboard is empty or unreadable.", error_code="CLIPBOARD_READ_FAILED")
+        return ToolResult.ok(
+            self.name, f"Retrieved {len(text)} characters from the clipboard.",
+            data={"text": text, "length": len(text)}, output=text,
+        )
 
 
-# Register all tools
-SYSTEM_TOOLS = [
+SYSTEM_TOOLS: List[TerminalTool] = [
     TakeScreenshotTool(),
     SetVolumeTool(),
     GetVolumeTool(),
     CopyToClipboardTool(),
     GetClipboardTool(),
+    GetProcessesTool(),
+    KillProcessTool(),
 ]

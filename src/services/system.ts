@@ -28,7 +28,7 @@ export const systemService = {
         currentMetrics = metrics;
         return metrics;
       }
-    } catch (error) {
+    } catch {
       console.log("⚠️ Using mock metrics (backend not available)");
     }
 
@@ -52,7 +52,7 @@ export const systemService = {
       if (response.ok) {
         return await response.json();
       }
-    } catch (error) {
+    } catch {
       console.log("⚠️ Using mock system info");
     }
 

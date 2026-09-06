@@ -1,11 +1,17 @@
-"""Tool introspection routes - Enhanced for Level 1"""
-from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any, Optional
+"""Tool introspection & context routes (unified, session-scoped).
 
-from app.agent.tool_registry import tool_registry
-from app.tools.registry import get_registry as get_tool_registry_v2
-from app.agent.context_manager import ContextManager
-from app.agent.state_machine import StateMachine
+Everything here operates on the SAME context manager and tool registry that
+the orchestrator uses - there are no private duplicate instances.
+"""
+from __future__ import annotations
+
+import time
+from typing import Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+
+from app.agent.context_manager import context_manager
+from app.agent.session_manager import session_manager
 from app.schemas.tools import (
     ToolExecutionRequest,
     ContextUpdateRequest,
@@ -18,272 +24,246 @@ from app.schemas.tools import (
     SystemStatus,
     SystemCapabilities,
 )
+from app.tools.registry import get_registry
 from app.core.logging import get_logger
-import time
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/tools", tags=["tools"])
 
-# Global instances
-tool_registry_v2 = get_tool_registry_v2()
-context_manager = ContextManager()
-state_machine = StateMachine()
-
-# Track uptime
+tool_registry = get_registry()
 START_TIME = time.time()
 
 
+def _resolve_session_id(session_id: Optional[str]) -> Optional[str]:
+    """Use the provided session id, else the most recent active session."""
+    if session_id:
+        return session_id
+    active = session_manager.active_sessions()
+    if not active:
+        return None
+    # Most recently touched session.
+    sessions = [s for s in session_manager._sessions.values() if s.id in active]
+    if not sessions:
+        return None
+    return max(sessions, key=lambda s: s.last_activity).id
+
+
+# ---------------------------------------------------------------------------
+# Introspection
+# ---------------------------------------------------------------------------
 @router.get("")
 async def list_tools() -> dict:
-    """List all registered tools and their permission levels."""
+    tools = tool_registry.list_tools_verbose()
+    return {"tools": tools, "count": len(tools)}
+
+
+@router.get("/list")
+async def list_tools_v2(category: Optional[str] = None) -> dict:
+    tools = tool_registry.get_tools_by_category(category) if category else tool_registry.get_all_tools()
     return {
-        "tools": tool_registry.list_tools(),
-        "count": len(tool_registry.tools),
+        "tools": [
+            {
+                "name": t.name,
+                "description": t.description,
+                "safety_level": t.safety_level,
+                "category": tool_registry._get_tool_category(t.name),
+            }
+            for t in tools
+        ],
+        "count": len(tools),
     }
 
 
 @router.get("/permissions")
 async def tool_permissions() -> dict:
-    """Return the permissions matrix."""
-    return {tool_registry.tools[name]["definition"].name: tool_registry.get_permission_level(name)
-            for name in tool_registry.tools}
+    return {name: tool.safety_level for name, tool in tool_registry.tools.items()}
 
 
-# V2 Endpoints (Level 1)
+@router.get("/registry")
+async def get_tool_registry() -> dict:
+    return tool_registry.get_tool_info()
 
+
+# Compatibility aliases for the earlier "/v2/..." surface.
 @router.get("/v2/registry")
-async def get_tool_registry_v2():
-    """Get information about all V2 registered tools"""
-    try:
-        info = tool_registry_v2.get_tool_info()
-        logger.info("tool_registry_v2_fetched", total_tools=info["total_tools"])
-        return info
-    except Exception as e:
-        logger.error("tool_registry_v2_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_tool_registry_v2() -> dict:
+    return tool_registry.get_tool_info()
 
 
 @router.get("/v2/list")
-async def list_tools_v2(category: Optional[str] = None):
-    """List all V2 tools, optionally filtered by category"""
-    try:
-        if category:
-            tools = tool_registry_v2.get_tools_by_category(category)
-        else:
-            tools = tool_registry_v2.get_all_tools()
-        
-        tool_list = [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "safety_level": tool.safety_level,
-                "category": tool_registry_v2._get_tool_category(tool.name)
-            }
-            for tool in tools
-        ]
-        
-        logger.info("tools_v2_listed", count=len(tool_list), category=category)
-        return {"tools": tool_list, "count": len(tool_list)}
-    except Exception as e:
-        logger.error("tools_v2_list_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def list_tools_v2_alias(category: Optional[str] = None) -> dict:
+    return await list_tools_v2(category)
 
 
 @router.get("/v2/{tool_name}")
-async def get_tool_details_v2(tool_name: str):
-    """Get details for a specific V2 tool"""
-    try:
-        tool = tool_registry_v2.get_tool(tool_name)
-        if not tool:
-            raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
-        
-        schema = tool.get_schema()
-        return {
-            "name": tool.name,
-            "description": tool.description,
-            "safety_level": tool.safety_level,
-            "category": tool_registry_v2._get_tool_category(tool.name),
-            "schema": schema
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("tool_v2_details_error", tool=tool_name, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_tool_details(tool_name: str) -> dict:
+    tool = tool_registry.get_tool(tool_name)
+    if tool is None:
+        raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+    return {
+        "name": tool.name,
+        "description": tool.description,
+        "safety_level": tool.safety_level,
+        "category": tool_registry._get_tool_category(tool.name),
+        "schema": tool.get_schema(),
+    }
 
 
+# ---------------------------------------------------------------------------
+# Execution
+# ---------------------------------------------------------------------------
+@router.post("/execute")
 @router.post("/v2/execute")
-async def execute_tool_v2(request: ToolExecutionRequest):
-    """Execute a V2 tool (for testing/debugging)"""
-    try:
-        result = await tool_registry_v2.execute_tool(
-            request.tool_name,
-            request.parameters,
-            skip_safety_check=request.skip_safety_check
-        )
-        
-        return {
-            "success": result.success,
-            "message": result.message,
-            "output": result.output,
-            "error": result.error,
-            "data": result.data,
-            "verification_passed": result.verification_passed,
-            "context_updates": result.context_updates
-        }
-    except Exception as e:
-        logger.error("tool_v2_execution_error", tool=request.tool_name, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def execute_tool(request: ToolExecutionRequest) -> dict:
+    result = await tool_registry.execute_tool(
+        request.tool_name,
+        request.parameters,
+        skip_safety_check=request.skip_safety_check,
+    )
+    payload = result.to_dict()
+    if request.session_id and result.context_updates:
+        context_manager.update_context(request.session_id, result.context_updates)
+    return payload
 
 
+@router.post("/verify")
+async def verify_tool_result(request: VerificationRequest) -> VerificationResponse:
+    from app.tools.terminal_base import ToolResult
+
+    result = ToolResult(**{k: v for k, v in request.result.items() if k in (
+        "success", "message", "output", "error", "exit_code", "data",
+        "verification_passed", "context_updates", "tool", "error_code",
+    )})
+    verified = await tool_registry.verify_tool_result(request.tool_name, result, request.parameters)
+    return VerificationResponse(
+        verified=verified,
+        details="Verification passed" if verified else "Verification failed",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Context (session-scoped)
+# ---------------------------------------------------------------------------
 @router.get("/context")
-async def get_context():
-    """Get current session context"""
-    try:
-        # Use default session for API calls
-        context = context_manager.get_context("default")
-        return {
-            "current_app": context.current_app,
-            "active_window": context.active_window,
-            "current_directory": context.current_directory,
-            "browser_url": context.browser_url,
-            "browser_title": context.browser_title,
-            "recent_actions_count": len(context.recent_actions),
-            "recent_files_count": len(context.recent_files)
-        }
-    except Exception as e:
-        logger.error("context_fetch_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_context(session_id: Optional[str] = Query(None)) -> dict:
+    sid = _resolve_session_id(session_id)
+    if sid is None:
+        raise HTTPException(status_code=404, detail="No active session. Connect the WebSocket or pass ?session_id=")
+    snapshot = context_manager.get_context_snapshot(sid)
+    if snapshot is None:
+        snapshot = {"session_id": sid}
+    return snapshot
 
 
 @router.get("/context/summary")
-async def get_context_summary():
-    """Get human-readable context summary"""
-    try:
-        summary = context_manager.get_context_summary("default")
-        return {
-            "summary": summary,
-            "has_context": bool(summary)
-        }
-    except Exception as e:
-        logger.error("context_summary_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_context_summary(session_id: Optional[str] = Query(None)) -> dict:
+    sid = _resolve_session_id(session_id)
+    if sid is None:
+        raise HTTPException(status_code=404, detail="No active session. Connect the WebSocket or pass ?session_id=")
+    summary = context_manager.get_context_summary(sid)
+    return {"session_id": sid, "summary": summary, "has_context": bool(summary)}
 
 
 @router.post("/context/update")
-async def update_context(request: ContextUpdateRequest):
-    """Update session context"""
-    try:
-        context_manager.update_context("default", request.updates)
-        return {"success": True, "message": "Context updated"}
-    except Exception as e:
-        logger.error("context_update_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def update_context(request: ContextUpdateRequest) -> dict:
+    sid = request.session_id or _resolve_session_id(None)
+    if sid is None:
+        raise HTTPException(status_code=404, detail="No active session.")
+    context_manager.update_context(sid, request.updates)
+    return {"success": True, "session_id": sid, "message": "Context updated"}
 
 
 @router.post("/context/reset")
-async def reset_context():
-    """Reset session context"""
-    try:
-        context_manager.reset("default")
-        return {"success": True, "message": "Context reset"}
-    except Exception as e:
-        logger.error("context_reset_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def reset_context(request: ContextUpdateRequest) -> dict:
+    sid = request.session_id or _resolve_session_id(None)
+    if sid is None:
+        raise HTTPException(status_code=404, detail="No active session.")
+    context_manager.reset(sid)
+    return {"success": True, "session_id": sid, "message": "Context reset"}
 
 
+# ---------------------------------------------------------------------------
+# Intent / status / capabilities
+# ---------------------------------------------------------------------------
 @router.post("/intent/analyze")
-async def analyze_intent(request: IntentAnalysisRequest):
-    """Analyze user intent and recommend tools"""
-    try:
-        # Get context if available
-        context_dict = {}
-        try:
-            context = context_manager.get_context("default")
-            context_dict = context.__dict__
-        except:
-            pass
-        
-        context = request.context or context_dict
-        
-        # Get recommended tools
-        recommended = tool_registry_v2.get_recommended_tools(request.command, context)
-        
-        # Simple intent detection
-        intent_type = "other"
-        if any(word in request.command.lower() for word in ["open", "launch", "start"]):
-            intent_type = "open_app"
-        elif any(word in request.command.lower() for word in ["close", "quit"]):
-            intent_type = "close_app"
-        elif any(word in request.command.lower() for word in ["find", "search"]):
-            intent_type = "find_file" if "file" in request.command.lower() else "search"
-        elif "screenshot" in request.command.lower():
-            intent_type = "screenshot"
-        elif any(word in request.command.lower() for word in ["volume", "sound"]):
-            intent_type = "volume_control"
-        elif "silence" in request.command.lower():
-            intent_type = "silence"
-        
-        return {
-            "intent_type": intent_type,
-            "recommended_tools": recommended,
-            "context_aware": bool(context),
-            "command": request.command
-        }
-    except Exception as e:
-        logger.error("intent_analysis_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+async def analyze_intent(request: IntentAnalysisRequest) -> dict:
+    context: Dict[str, object] = {}
+    sid = request.session_id or _resolve_session_id(None)
+    if sid:
+        snapshot = context_manager.get_context_snapshot(sid) or {}
+        context.update(snapshot)
+    if request.context:
+        context.update(request.context)
+
+    recommended = tool_registry.get_recommended_tools(request.command, context)
+    return {
+        "intent_type": "task",
+        "recommended_tools": recommended,
+        "context_aware": bool(sid),
+        "command": request.command,
+        "session_id": sid,
+    }
 
 
-@router.get("/status")
-async def get_system_status():
-    """Get current system status"""
-    try:
-        current_state = state_machine.get_current_state()
-        last_action = None
-        try:
-            context = context_manager.get_context("default")
-            if context.recent_actions:
-                last_action = context.recent_actions[-1].tool
-        except:
-            pass
-        
-        return {
-            "state": current_state.value,
-            "tools_available": len(tool_registry_v2.get_all_tools()),
-            "context_active": True,
-            "continuous_listening": True,
-            "last_action": last_action,
-            "uptime_seconds": time.time() - START_TIME
-        }
-    except Exception as e:
-        logger.error("status_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+@router.post("/recommend", response_model=ToolRecommendationResponse)
+async def recommend_tools(request: ToolRecommendationRequest) -> ToolRecommendationResponse:
+    recommended = tool_registry.get_recommended_tools(request.intent, request.context or {})
+    return ToolRecommendationResponse(
+        recommendations=[
+            ToolRecommendation(
+                tool_name=name,
+                confidence=0.8,
+                reasoning=f"Recommended for intent: {request.intent}",
+            )
+            for name in recommended
+        ],
+        context_used=bool(request.context),
+    )
 
 
-@router.get("/capabilities")
-async def get_capabilities():
-    """Get system capabilities"""
-    try:
-        info = tool_registry_v2.get_tool_info()
-        
-        return {
-            "level": 1,  # Level 1: Desktop Control
-            "features": [
-                "Terminal-first desktop control",
-                "Application management",
-                "File operations",
-                "System control (screenshot, volume, clipboard)",
-                "Context awareness",
-                "Continuous listening",
-                "Action verification"
-            ],
-            "tools_by_category": info["categories"],
-            "continuous_listening": True,
-            "context_awareness": True,
-            "verification_enabled": True
-        }
-    except Exception as e:
-        logger.error("capabilities_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/status", response_model=SystemStatus)
+async def get_system_status(session_id: Optional[str] = Query(None)) -> SystemStatus:
+    sid = _resolve_session_id(session_id)
+    state = "idle"
+    last_action = None
+    context_active = False
+    if sid:
+        session = session_manager.get(sid)
+        if session:
+            state = session.state_machine.get_current_state().value
+            context = context_manager.get_context(sid)
+            if context:
+                context_active = True
+                if context.recent_actions:
+                    last_action = context.recent_actions[-1].tool
+    return SystemStatus(
+        state=state,
+        tools_available=len(tool_registry.get_all_tools()),
+        context_active=context_active,
+        continuous_listening=True,
+        last_action=last_action,
+        uptime_seconds=time.time() - START_TIME,
+        session_id=sid,
+    )
 
+
+@router.get("/capabilities", response_model=SystemCapabilities)
+async def get_capabilities() -> SystemCapabilities:
+    info = tool_registry.get_tool_info()
+    return SystemCapabilities(
+        level=1,
+        features=[
+            "Terminal-first desktop control",
+            "Application management",
+            "File operations",
+            "System control (screenshot, volume, clipboard)",
+            "Real browser automation",
+            "Context awareness",
+            "Continuous listening",
+            "Action verification",
+        ],
+        tools_by_category=info["categories"],
+        continuous_listening=True,
+        context_awareness=True,
+        verification_enabled=True,
+    )

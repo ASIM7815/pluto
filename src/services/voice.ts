@@ -3,72 +3,105 @@ import { aiService } from "./ai";
 
 const REST_BASE = "/api/backend";
 
+// Demo queries used ONLY when the browser has no SpeechRecognition API at all.
+// They drive the input box so the UI is testable; execution is still real and
+// this mode never auto-restarts (no infinite microphone loop).
 const sampleVoiceQueries = [
-  "Open YouTube and play a great song",
-  "Open WhatsApp and send Owais a message saying I'll reach at 7",
-  "Open VS Code and start my project",
+  "Open YouTube",
+  "Search Iron Man",
   "Create a folder called PLUTO inside my Projects directory",
-  "Check system stats and optimize RAM usage",
-  "Compose an email to Owais about the project meeting",
+  "Check system status",
 ];
 
-let isVoiceActive = false;
-let queryIndex = 0;
-let recognition: any = null;
-let recognitionSupported = false;
+export interface VoiceInfo {
+  voice_id: string;
+  name?: string;
+  labels?: Record<string, string>;
+}
 
-function detectRecognition(): boolean {
-  if (typeof window === "undefined") return false;
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  return Boolean(SR);
+let isVoiceActive = false;
+let recognition: SpeechRecognition | null = null;
+let recognitionSupported = false;
+let finishedThisSession = false; // guards double-stop from onerror/onend
+let queryIndex = 0;
+
+function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
 
 export const voiceService = {
-  startListening(): void {
+  isRecognitionSupported(): boolean {
+    return recognitionSupported;
+  },
+
+  isActive(): boolean {
+    return isVoiceActive;
+  },
+
+  startListening(manual = true): void {
     const store = usePlutoStore.getState();
     if (isVoiceActive) return;
+    // Never start the mic while PLUTO is executing or speaking.
+    if (store.isSpeaking || store.isExecuting) return;
 
-    recognitionSupported = detectRecognition();
+    const SR = getSpeechRecognitionCtor();
+    recognitionSupported = SR !== null;
     isVoiceActive = true;
+    finishedThisSession = false;
     store.setListening(true);
     store.setState("listening");
     store.setTranscript("Listening...");
+    if (manual || store.voiceEngaged) {
+      // The next auto-restart after speech depends on this flag.
+      store.setVoiceEngaged(true);
+    }
 
-    if (recognitionSupported) {
-      // Real speech-to-text via Web Speech API.
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      recognition = new SR();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
+    if (SR) {
+      // Real speech-to-text via the Web Speech API.
+      const rec = new SR();
+      recognition = rec;
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = "en-US";
 
       let finalText = "";
-      recognition.onresult = (event: any) => {
+      rec.onresult = (event) => {
         let interim = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalText += transcript;
+          const result = event.results[i];
+          const transcript = result[0].transcript;
+          if (result.isFinal) finalText += transcript;
           else interim += transcript;
         }
         const shown = finalText || interim;
         store.setTranscript(shown);
         store.setCommand(shown);
       };
-      recognition.onerror = () => {
-        this.stopListening();
+      rec.onerror = () => {
+        if (!finishedThisSession) {
+          finishedThisSession = true;
+          this.stopListening(undefined, false);
+        }
       };
-      recognition.onend = () => {
-        const cmd = finalText || store.transcript;
-        this.stopListening(cmd);
+      rec.onend = () => {
+        if (!finishedThisSession) {
+          finishedThisSession = true;
+          const cmd = finalText || usePlutoStore.getState().transcript;
+          this.stopListening(cmd || undefined, false);
+        }
       };
       try {
-        recognition.start();
+        rec.start();
       } catch {
-        this.stopListening();
+        finishedThisSession = true;
+        this.stopListening(undefined, false);
       }
     } else {
-      // Fallback: simulate typing a sample query so the demo keeps working when
-      // the browser/iframe does not allow microphone access.
+      // Fallback: simulate a spoken query (mic not available in this browser).
+      console.warn(
+        "Web Speech API unavailable - PLUTO will simulate typed input for this session."
+      );
       const targetQuery = sampleVoiceQueries[queryIndex % sampleVoiceQueries.length];
       queryIndex++;
       let charIdx = 0;
@@ -83,14 +116,20 @@ export const voiceService = {
         store.setCommand(partial);
         if (charIdx >= targetQuery.length) {
           clearInterval(interval);
-          setTimeout(() => this.stopListening(targetQuery), 800);
+          setTimeout(() => {
+            if (!finishedThisSession) {
+              finishedThisSession = true;
+              this.stopListening(targetQuery, false);
+            }
+          }, 700);
         }
-      }, 110);
+      }, 90);
     }
   },
 
-  stopListening(finalText?: string): void {
+  stopListening(finalText?: string, manual = false): void {
     const store = usePlutoStore.getState();
+    if (!isVoiceActive && !finalText) return;
     isVoiceActive = false;
     store.setListening(false);
 
@@ -98,14 +137,21 @@ export const voiceService = {
       try {
         recognition.stop();
       } catch {
-        // ignore
+        // ignore - recognition already stopped
       }
       recognition = null;
     }
 
-    const command = finalText || store.currentCommand || store.transcript;
-    if (command && command !== "Listening..." && command.trim()) {
-      aiService.executeCommand(command);
+    if (manual) {
+      // The user toggled the mic off - do not auto-restart later.
+      store.setVoiceEngaged(false);
+    }
+
+    const command = (finalText || store.currentCommand || store.transcript || "").trim();
+    if (command && command !== "Listening...") {
+      store.setTranscript("");
+      store.setCommand(command);
+      void aiService.executeCommand(command);
     } else {
       store.setState("idle");
       store.setTranscript("");
@@ -113,15 +159,34 @@ export const voiceService = {
   },
 
   toggleListening(): void {
-    if (isVoiceActive) this.stopListening();
-    else this.startListening();
+    const store = usePlutoStore.getState();
+    if (isVoiceActive) {
+      this.stopListening(undefined, true);
+    } else {
+      if (store.isSpeaking) return; // don't start while PLUTO is talking
+      this.startListening(true);
+    }
   },
 
-  // TTS via backend ElevenLabs (returns audio we can play; browser TTS is the
-  // fallback handled in tts.ts when no audio is sent).
+  /** Called after a spoken response finishes: re-arm the mic if this session
+   *  was voice-driven and real SpeechRecognition is available. */
+  autoRestartListening(): void {
+    const store = usePlutoStore.getState();
+    if (!store.autoListen || !store.voiceEngaged) return;
+    if (!recognitionSupported) return; // demo mode must never auto-loop
+    if (store.isSpeaking || store.isExecuting || isVoiceActive) return;
+    setTimeout(() => {
+      const s = usePlutoStore.getState();
+      if (!s.isSpeaking && !s.isExecuting && !isVoiceActive) {
+        this.startListening(false);
+      }
+    }, 450);
+  },
+
+  // TTS via backend (ElevenLabs when configured; audio blob). Browser TTS is
+  // handled in tts.ts when no audio is attached to a speak event.
   async synthesizeSpeech(text: string): Promise<void> {
     try {
-      console.log("🔊 Synthesizing speech:", text);
       const response = await fetch(`${REST_BASE}/voice/synthesize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,22 +198,20 @@ export const voiceService = {
         const audio = new Audio(audioUrl);
         audio.onended = () => URL.revokeObjectURL(audioUrl);
         await audio.play();
-        console.log("✅ Speech synthesis complete");
       } else {
-        // Fall back to browser TTS.
         await import("./tts").then((m) => m.speak(text, null));
       }
     } catch (error) {
-      console.error("❌ TTS error:", error);
+      console.error("TTS error:", error);
       await import("./tts").then((m) => m.speak(text, null));
     }
   },
 
-  async getAvailableVoices(): Promise<any[]> {
+  async getAvailableVoices(): Promise<VoiceInfo[]> {
     try {
       const response = await fetch(`${REST_BASE}/voice/voices`);
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { voices?: VoiceInfo[] };
         return data.voices || [];
       }
     } catch (error) {

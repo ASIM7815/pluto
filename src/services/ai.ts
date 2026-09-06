@@ -1,47 +1,90 @@
 import { usePlutoStore } from "@/store/plutoStore";
-import { ExecutionStep, ActionPreview, Activity } from "@/types";
+import { PlutoState, ExecutionStep, ActionPreview, Activity } from "@/types";
 import { speak, cancelSpeech } from "@/services/tts";
 
 // Use relative URLs so calls are proxied by the Next dev server to the
 // FastAPI backend (works from any host, e.g. the sandbox preview).
 const REST_BASE = "/api/backend";
 
+// One stable session id per browser tab: it is sent to the WebSocket and to
+// the REST fallback so the ContextManager keeps a single continuous session
+// no matter which transport is used. It is generated on the client - PLUTO
+// never hard-codes sessions.
+function makeSessionId(): string {
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
+    return `web-${window.crypto.randomUUID()}`;
+  }
+  return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+let SESSION_ID = "";
+
+function getSessionId(): string {
+  if (!SESSION_ID) SESSION_ID = makeSessionId();
+  return SESSION_ID;
+}
+
 function wsUrl(): string {
   if (typeof window === "undefined") return "ws://127.0.0.1:8765/api/chat/ws";
   const proto = window.location.protocol === "https:" ? "wss://" : "ws://";
-  return `${proto}${window.location.host}/api/backend/chat/ws`;
+  return `${proto}${window.location.host}/api/backend/chat/ws?session_id=${encodeURIComponent(
+    getSessionId()
+  )}`;
 }
+
+/** Shape of the events the backend streams (see app/schemas/chat.py). */
+interface BackendEvent {
+  type: string;
+  session_id?: string;
+  state?: string;
+  task?: string;
+  error?: string;
+  text?: string;
+  audio?: string | null;
+  tts?: string;
+  step?: ExecutionStep;
+  preview?: ActionPreview;
+  activity?: Activity;
+  data?: { response?: string } | null;
+}
+
+const READY_STATES: PlutoState[] = ["listening", "success", "idle", "error"];
 
 export const aiService = {
   ws: null as WebSocket | null,
   reconnectAttempts: 0,
   maxReconnectAttempts: 5,
-  voiceRecognition: null as any,
 
   connectWebSocket(): void {
     if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.CONNECTING) return;
 
     console.log("🔌 Connecting to PLUTO backend...");
     try {
-      this.ws = new WebSocket(wsUrl());
+      const ws = new WebSocket(wsUrl());
+      this.ws = ws;
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
         console.log("✅ Connected to PLUTO backend");
         this.reconnectAttempts = 0;
       };
 
-      this.ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+      ws.onmessage = (event) => {
+        let data: BackendEvent;
+        try {
+          data = JSON.parse(String(event.data)) as BackendEvent;
+        } catch {
+          return;
+        }
         this.handleBackendEvent(data);
       };
 
-      this.ws.onerror = (error) => {
-        console.error("❌ WebSocket error:", error);
+      ws.onerror = (event) => {
+        console.error("❌ WebSocket error:", event);
       };
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
         console.log("🔌 Disconnected from backend");
-        this.ws = null;
+        if (this.ws === ws) this.ws = null;
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
           setTimeout(() => this.connectWebSocket(), 2000);
@@ -52,50 +95,60 @@ export const aiService = {
     }
   },
 
-  handleBackendEvent(data: any): void {
+  waitForOpen(timeoutMs = 3500): Promise<boolean> {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const poll = () => {
+        if (this.ws?.readyState === WebSocket.OPEN) return resolve(true);
+        if (Date.now() - started > timeoutMs) return resolve(false);
+        setTimeout(poll, 120);
+      };
+      poll();
+    });
+  },
+
+  handleBackendEvent(data: BackendEvent): void {
     const store = usePlutoStore.getState();
 
     switch (data.type) {
-      case "silence":
-        // User said "silence" - stop listening mode
-        console.log("🔇 Silence mode activated");
-        store.setListening(false);
-        store.setState("idle");
-        if (data.data?.response) {
-          store.setAiResponse(data.data.response);
-        }
-        // Stop any active voice recognition
-        if (this.voiceRecognition) {
-          this.voiceRecognition.stop();
-        }
+      case "session":
+        if (data.state && !store.isSpeaking) store.setState(data.state as PlutoState);
         break;
 
-      case "agent_state":
-        if (data.state) {
-          // Don't switch away from SPEAKING mid-utterance; tts.ts sets LISTENING
-          // when the spoken response actually finishes.
-          if (data.state === "listening" && store.isSpeaking) {
-            break;
+      case "silence":
+        // User said "silence" - stop listening mode entirely.
+        store.setVoiceEngaged(false);
+        store.setListening(false);
+        store.setState("idle");
+        if (data.data?.response) store.setAiResponse(data.data.response);
+        break;
+
+      case "agent_state": {
+        const nextState = data.state as PlutoState | undefined;
+        if (nextState) {
+          if (nextState === "listening" && store.isSpeaking) {
+            // The real return-to-listening happens when audio finishes
+            // (see tts.ts) so we don't yank the UI mid-utterance.
+          } else {
+            store.setState(nextState);
           }
-          store.setState(data.state);
-          // The loop returned to LISTENING -> the current task is done.
-          if (data.state === "listening") {
+          if (READY_STATES.includes(nextState)) {
             store.setExecuting(false);
             store.setCurrentTask(null);
           }
         }
-        if (data.task && data.state !== "listening") store.setCurrentTask(data.task);
-        if (data.error) store.setErrorMessage(data.error);
-        if (data.data?.response) {
-          console.log("💬 Response:", data.data.response);
-          store.setAiResponse(data.data.response);
+        if (data.task && nextState && !READY_STATES.includes(nextState)) {
+          store.setCurrentTask(data.task);
         }
+        if (data.error) store.setErrorMessage(data.error);
+        if (data.data?.response) store.setAiResponse(data.data.response);
         break;
+      }
 
       case "execution_step":
         if (data.step) {
           const currentSteps = store.executionSteps;
-          const existingIndex = currentSteps.findIndex((s) => s.id === data.step.id);
+          const existingIndex = currentSteps.findIndex((s) => s.id === data.step!.id);
           if (existingIndex >= 0) {
             store.updateExecutionStep(data.step.id, data.step.status);
           } else {
@@ -119,14 +172,15 @@ export const aiService = {
         break;
 
       case "speak":
-        store.setAiResponse(data.text);
-        // Fire-and-forget: plays ElevenLabs audio or browser TTS, then returns
-        // the UI to LISTENING.
-        if (data.text) speak(data.text, data.audio);
+        store.setAiResponse(data.text ?? null);
+        // Fire-and-forget: plays backend audio (ElevenLabs / local TTS) or
+        // browser TTS, then returns the UI to LISTENING.
+        if (data.text) void speak(data.text, data.audio ?? null, data.tts);
         break;
 
       case "error":
         store.setState("error");
+        store.setExecuting(false);
         store.setErrorMessage(data.error || "An error occurred");
         break;
     }
@@ -139,7 +193,7 @@ export const aiService = {
 
     cancelSpeech(); // interrupt any previous spoken response
 
-    // Reset previous states
+    // Reset previous task state.
     store.setErrorMessage(null);
     store.setActionPreview(null);
     store.setConfirmationRequired(null);
@@ -151,14 +205,18 @@ export const aiService = {
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.connectWebSocket();
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const opened = await this.waitForOpen(3500);
+      if (!opened) {
+        console.log("⚠️ WebSocket not available, using REST API");
+        await this.executeCommandREST(command);
+        return;
+      }
     }
 
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.log("📤 Sending command:", command);
       this.ws.send(JSON.stringify({ type: "command", command }));
     } else {
-      console.log("⚠️ WebSocket not ready, using REST API");
       await this.executeCommandREST(command);
     }
   },
@@ -169,15 +227,19 @@ export const aiService = {
       const response = await fetch(`${REST_BASE}/chat/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
+        body: JSON.stringify({ command, session_id: getSessionId() }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as {
+        success: boolean;
+        message?: string;
+        state?: string;
+        data?: { response?: string };
+      };
 
       if (result.success) {
-        store.setState(result.state);
-        if (result.data?.response) {
-          store.setAiResponse(result.data.response);
-        }
+        store.setState(result.state === "error" ? "error" : "success");
+        const message = result.data?.response || result.message || command;
+        store.setAiResponse(message);
         store.addActivity({
           id: `act-${Date.now()}`,
           title: "Command Executed",
@@ -186,14 +248,20 @@ export const aiService = {
           status: "success",
           category: "automation",
         });
-        store.setState("listening");
+        setTimeout(() => {
+          usePlutoStore.getState().setExecuting(false);
+          usePlutoStore.getState().setState("listening");
+        }, 400);
       } else {
         store.setState("error");
+        store.setExecuting(false);
         store.setErrorMessage(result.message || "Command failed");
+        if (result.message) store.setAiResponse(result.message);
       }
     } catch (error) {
       console.error("❌ Command execution failed:", error);
       store.setState("error");
+      store.setExecuting(false);
       store.setErrorMessage(
         "Cannot connect to PLUTO backend. Make sure it's running on port 8765."
       );
@@ -223,8 +291,12 @@ export const aiService = {
   },
 
   resetSession(): void {
+    const store = usePlutoStore.getState();
+    store.resetToIdle();
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "reset", clearHistory: true }));
+      this.ws.send(
+        JSON.stringify({ type: "reset", clearHistory: true, session_id: getSessionId() })
+      );
     }
   },
 };

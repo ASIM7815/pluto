@@ -17,7 +17,7 @@ export interface Activity {
   description: string;
   timestamp: string;
   status: "running" | "success" | "info" | "error";
-  category?: "app" | "file" | "message" | "system" | "automation";
+  category?: "app" | "file" | "message" | "system" | "automation" | "browser";
 }
 
 export interface ExecutionStep {
@@ -69,5 +69,5 @@ export interface SpeakEvent {
   type: "speak";
   text: string;
   audio?: string | null; // base64-encoded audio bytes, or null => use browser TTS
-  tts: "elevenlabs" | "browser";
+  tts: "elevenlabs" | "browser" | "local_tts";
 }

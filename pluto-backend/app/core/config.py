@@ -41,8 +41,17 @@ class Settings(BaseSettings):
     # ---- Agent loop behaviour ----
     pluto_auto_speak: bool = True       # speak the final answer
     pluto_auto_listen: bool = True      # auto-return to LISTENING after speaking
-    pluto_max_iterations: int = 8       # max observe->reason loop passes per task
+    pluto_max_iterations: int = 10      # max observe->reason loop passes per task
     pluto_stream_text: bool = False
+    pluto_session_idle_minutes: int = 120  # context/session expiry
+
+    # ---- Browser automation ----
+    # "auto" => headless only when no graphical display is available.
+    pluto_browser_headless: str = "auto"
+
+    # ---- Messaging integration (see app/tools/messaging.py) ----
+    # Executable invoked with (recipient, message) args; exit 0 = delivered.
+    pluto_messaging_command: str = ""
 
     # ---- Filesystem Sandbox ----
     pluto_allowed_paths: str = (

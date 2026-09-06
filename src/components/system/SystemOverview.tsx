@@ -3,7 +3,7 @@
 import React from "react";
 import { MetricRing } from "./MetricRing";
 import { useSystemStats } from "@/hooks/useSystemStats";
-import { ShieldCheck, Cpu, Layers } from "lucide-react";
+import { Cpu, Layers } from "lucide-react";
 
 export function SystemOverview() {
   const metrics = useSystemStats(2500);

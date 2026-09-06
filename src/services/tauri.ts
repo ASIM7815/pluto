@@ -61,6 +61,7 @@ export const tauriService = {
   },
 
   async listFiles(_dirPath: string): Promise<string[]> {
+    void _dirPath; // parameter reserved for the real Tauri bridge
     return [
       "PLUTO",
       "desktop-agent.rs",
