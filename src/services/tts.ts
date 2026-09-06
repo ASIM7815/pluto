@@ -2,6 +2,7 @@ import { usePlutoStore } from "@/store/plutoStore";
 
 let currentAudio: HTMLAudioElement | null = null;
 let speechToken = 0;
+let playbackCancelled = false;
 
 function decodeBase64Audio(base64: string, mime = "audio/mpeg"): Blob {
   const binary = atob(base64);
@@ -19,26 +20,30 @@ function audioMimeForEngine(tts: string): string {
 
 function playAudioBlob(blob: Blob): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (playbackCancelled) {
+      resolve(); // stopped before it even started
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     currentAudio = audio;
-
-    const cleanup = () => URL.revokeObjectURL(url);
-
-    audio.onended = () => {
-      cleanup();
-      resolve();
+    let settled = false;
+    const finish = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      if (currentAudio === audio) currentAudio = null;
+      if (err) reject(err);
+      else resolve();
     };
-    audio.onerror = () => {
-      cleanup();
-      // Fall back to browser TTS if audio fails to decode/play.
-      reject(new Error("audio playback failed"));
-    };
+
+    // IMPORTANT: onpause also fires when cancelSpeech() pauses the audio.
+    // Without it, stopping PLUTO's voice left the UI stuck in "speaking".
+    audio.onended = () => finish();
+    audio.onpause = () => finish();
+    audio.onerror = () => finish(new Error("audio playback failed"));
     // Some browsers need play() to be user-gesture-backed; catch rejection.
-    audio.play().catch((e) => {
-      cleanup();
-      reject(e);
-    });
+    audio.play().catch((e) => finish(e instanceof Error ? e : new Error(String(e))));
   });
 }
 
@@ -55,12 +60,13 @@ function speakBrowser(text: string): Promise<void> {
     u.rate = 1.0;
     u.pitch = 1.0;
     u.lang = "en-US";
-    u.onend = () => {
-      if (token === speechToken) resolve();
-    };
-    u.onerror = () => {
-      if (token === speechToken) resolve();
-    };
+    // Always resolve (also on cancel) so the UI never hangs in "speaking".
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    if (playbackCancelled && token === speechToken) {
+      resolve();
+      return;
+    }
     synth.speak(u);
   });
 }
@@ -77,8 +83,8 @@ async function maybeRestartListening(): Promise<void> {
 /**
  * Speak a response. Prefers backend audio (ElevenLabs / local TTS) when
  * present, otherwise falls back to the browser's built-in speechSynthesis so
- * PLUTO always talks. Resolves when speech finishes (or immediately if speech
- * is unavailable) and then returns the UI to LISTENING for the next command.
+ * PLUTO always talks. Resolves when speech finishes (or is stopped via
+ * cancelSpeech) and then returns the UI to LISTENING for the next command.
  */
 export async function speak(
   text: string,
@@ -86,6 +92,7 @@ export async function speak(
   ttsEngine?: string
 ): Promise<void> {
   const store = usePlutoStore.getState();
+  playbackCancelled = false;
   store.setSpeaking(true);
   store.setState("speaking");
 
@@ -112,12 +119,21 @@ export async function speak(
 }
 
 export function cancelSpeech(): void {
+  playbackCancelled = true;
   speechToken++;
   if (currentAudio) {
-    currentAudio.pause();
+    try {
+      currentAudio.pause(); // fires onpause => playAudioBlob resolves
+    } catch {
+      // already stopped
+    }
     currentAudio = null;
   }
   if (typeof window !== "undefined" && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // some browsers throw on cancel() with no active utterance
+    }
   }
 }

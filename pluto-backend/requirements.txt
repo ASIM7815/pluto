@@ -27,6 +27,10 @@ playwright==1.62.0
 # Voice/Audio
 gTTS==2.5.4
 pydub==0.25.1
+# Server-side STT fallback (browser Web Speech API works without these).
+# Optional but recommended: `pip install faster-whisper` for fully offline STT
+# and system ffmpeg for MediaRecorder audio conversion.
+SpeechRecognition==3.10.3
 
 # Testing
 pytest==7.4.4

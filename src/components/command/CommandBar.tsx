@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, ArrowRight, Keyboard } from "lucide-react";
+import { Plus, ArrowRight, Keyboard, MicOff } from "lucide-react";
 import { VoiceButton } from "./VoiceButton";
 import { VoiceWaveform } from "./VoiceWaveform";
+import { StopButton } from "./StopButton";
 import { usePlutoStore } from "@/store/plutoStore";
 import { useVoice } from "@/hooks/useVoice";
 import { aiService } from "@/services/ai";
@@ -13,7 +14,7 @@ export function CommandBar() {
   const [inputVal, setInputVal] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const store = usePlutoStore();
-  const { isListening, transcript } = useVoice();
+  const { isListening, transcript, voiceError } = useVoice();
 
   // Sync transcript to input field when voice is active
   useEffect(() => {
@@ -33,6 +34,13 @@ export function CommandBar() {
   };
 
   return (
+    <div className="relative">
+      {voiceError && (
+        <div className="mx-auto w-[90%] max-w-[900px] mb-2 flex items-center gap-2 text-[11px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5">
+          <MicOff className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{voiceError}</span>
+        </div>
+      )}
     <form
       onSubmit={handleSubmit}
       className={cn(
@@ -81,6 +89,8 @@ export function CommandBar() {
           <span>Ctrl + Space</span>
         </div>
 
+        <StopButton />
+
         <VoiceButton />
 
         <button
@@ -97,5 +107,6 @@ export function CommandBar() {
         </button>
       </div>
     </form>
+    </div>
   );
 }

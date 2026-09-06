@@ -74,8 +74,9 @@ APP_MAPPINGS: Dict[str, str] = {
     "vlc": "vlc",
     "spotify": "spotify",
     "audacity": "audacity",
-    "youtube": "firefox",
-    "yt": "firefox",
+    # NOTE: "youtube" is deliberately NOT here. Websites are opened with the
+    # open_url tool (PLUTO's real browser), never as a "desktop app" - mapping
+    # it here used to surprise users by launching the wrong browser.
 }
 
 # Executables that are terminal programs (safe without a graphical session).

@@ -15,6 +15,9 @@ interface PlutoStore {
   transcript: string;
   aiResponse: string | null;
   isSpeaking: boolean;
+  // Human-readable microphone/STT problem ("Microphone blocked...") shown in
+  // the UI instead of failing silently.
+  voiceError: string | null;
   // Continuous-listening coordination: autoListen is the master switch,
   // voiceEngaged remembers that the last command came from the microphone so
   // PLUTO re-arms the mic (and only the mic) after it finishes speaking.
@@ -36,6 +39,7 @@ interface PlutoStore {
   setTranscript: (text: string) => void;
   setAiResponse: (response: string | null) => void;
   setSpeaking: (value: boolean) => void;
+  setVoiceError: (msg: string | null) => void;
   addActivity: (activity: Activity) => void;
   clearActivities: () => void;
   resetToIdle: () => void;
@@ -90,6 +94,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   transcript: "",
   aiResponse: null,
   isSpeaking: false,
+  voiceError: null,
   autoListen: true,
   voiceEngaged: false,
 
@@ -113,6 +118,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   setTranscript: (transcript) => set({ transcript }),
   setAiResponse: (aiResponse) => set({ aiResponse }),
   setSpeaking: (isSpeaking) => set({ isSpeaking }),
+  setVoiceError: (voiceError) => set({ voiceError }),
   addActivity: (activity) =>
     set((s) => ({ activities: [activity, ...s.activities.slice(0, 19)] })),
   clearActivities: () => set({ activities: [] }),
@@ -129,6 +135,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
       transcript: "",
       aiResponse: null,
       isSpeaking: false,
+      voiceError: null,
       voiceEngaged: false
     })
 }));

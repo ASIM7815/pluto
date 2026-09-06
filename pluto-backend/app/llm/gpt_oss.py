@@ -189,11 +189,53 @@ class GPTOSSClient:
                 if not step.id:
                     step.id = f"call_{executed}"
                 return LLMResponse(content=None, tool_calls=[step], finish_reason="tool_calls")
-            return LLMResponse(content=step, finish_reason="stop")
+            return LLMResponse(content=self._communicative(step), finish_reason="stop")
         return LLMResponse(
-            content=plan_seq[-1] if plan_seq else "Done. Anything else?",
+            content=self._communicative(plan_seq[-1] if plan_seq else "Done. Anything else?"),
             finish_reason="stop",
         )
+
+    # ------------------------------------------------------------------
+    # Mock replies are written terse; upgrade them so mock mode is as
+    # communicative as the real model (user-facing style, ~2-3 sentences).
+    # ------------------------------------------------------------------
+    _REPLY_UPGRADES = {
+        "I've opened YouTube.": (
+            "YouTube is open in your browser, BOSS - the homepage loaded just "
+            "fine. Want me to search for something?"
+        ),
+        "I've opened GitHub.": (
+            "GitHub is open and ready, BOSS. Want me to search for a repository "
+            "or open one of your projects?"
+        ),
+        "Playing the second video.": (
+            "Done, BOSS - the second result is open and playing now. I'm still "
+            "listening if you want the next one."
+        ),
+        "Playing it.": (
+            "Playing it now, BOSS. Tell me if you want a different result."
+        ),
+        "Screenshot taken.": (
+            "Screenshot captured and saved, BOSS. Want me to open it so you can "
+            "take a look?"
+        ),
+        "Command executed.": (
+            "The command ran and finished cleanly, BOSS. Anything else you'd "
+            "like me to do?"
+        ),
+    }
+
+    @classmethod
+    def _communicative(cls, text: Optional[str]) -> str:
+        if not text:
+            return "Done, BOSS. Anything else?"
+        text = text.strip()
+        if text in cls._REPLY_UPGRADES:
+            return cls._REPLY_UPGRADES[text]
+        # Generic upgrade: confirm + invite the next step.
+        if text.endswith("."):
+            return f"{text} I'm still listening, BOSS - what's next?"
+        return text
 
     # ------------------------------------------------------------------
     # Deterministic intent parsing for mock mode. Uses ONLY tools that exist
