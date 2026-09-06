@@ -241,8 +241,15 @@ class ToolRegistry:
 
         if any(k in words for k in (" open ", " launch ", " start ", "open_application")):
             recommended.append("open_application")
-        if any(k in words for k in (" close ", " quit ", "exit")):
+        if any(k in words for k in (" close ", " quit ", " exit ", " terminate ")):
             recommended.append("close_application")
+        if any(k in text for k in ("switch to", "focus on", "bring up", "activate app")):
+            recommended.append("switch_to_application")
+        if any(k in text for k in (
+            "apps are running", "applications are running", "running apps",
+            "running applications", "open apps",
+        )):
+            recommended.append("list_running_applications")
         if any(k in words for k in ("find ", "search for", " locate ")) and any(
             k in text for k in ("file", "document", "folder")
         ):

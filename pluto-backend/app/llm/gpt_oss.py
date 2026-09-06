@@ -299,7 +299,8 @@ class GPTOSSClient:
                 "the browser and check your system - just tell me what you need."
             ]
         if "?" in user_text and not any(k in t for k in (
-            "open", "search", "play", "create", "send", "delete", "move", "copy", "choose", "click"
+            "open", "search", "play", "create", "send", "delete", "move", "copy", "choose", "click",
+            "running", "apps", "applications", "switch", "focus", "close", "quit",
         )):
             return [
                 "I understand the question. If it's about this computer, try 'check system "
@@ -444,14 +445,62 @@ class GPTOSSClient:
 
         # Applications ------------------------------------------------------------
         apps = {
-            "vscode": "code", "vs code": "code", "visual studio code": "code", "code": "code",
-            "firefox": "firefox", "browser": "firefox", "chrome": "google-chrome",
+            # Put longer aliases first so "visual studio code" does not match
+            # the shorter "code" alias prematurely.
+            "visual studio code": "code", "vs code": "code", "vscode": "code",
+            "file manager": "nautilus", "google chrome": "google-chrome",
+            "gnome terminal": "gnome-terminal", "libreoffice": "libreoffice",
+            "firefox": "firefox", "chrome": "google-chrome", "browser": "firefox",
             "terminal": "gnome-terminal", "console": "gnome-terminal",
             "calculator": "gnome-calculator", "settings": "gnome-control-center",
             "spotify": "spotify", "vlc": "vlc", "discord": "discord", "slack": "slack",
-            "gimp": "gimp", "files": "nautilus", "file manager": "nautilus",
-            "libreoffice": "libreoffice",
+            "gimp": "gimp", "files": "nautilus", "code": "code",
         }
+
+        def requested_app() -> Optional[str]:
+            for alias, executable in apps.items():
+                if alias in t:
+                    return executable
+            return None
+
+        # These intents must be checked before generic "open" handling. This
+        # makes all four Level-1 application actions work in local/mock mode,
+        # which is also the default when no hosted LLM key is configured.
+        if any(phrase in t for phrase in (
+            "what apps are running", "what applications are running",
+            "which apps are running", "which applications are running",
+            "list running apps", "list running applications", "show running apps",
+            "show open apps", "running applications", "running apps",
+        )):
+            return [
+                LLMToolCall("list_running_applications", {}),
+                "I've checked which applications are running.",
+            ]
+
+        if any(verb in words for verb in (" close ", " quit ", " exit ", " terminate ")):
+            app = requested_app()
+            if not app:
+                app = cls._strip_noise(
+                    t, ["close", "quit", "exit", "terminate", "please", "the", "app", "application", "program"]
+                )
+            if app:
+                return [
+                    LLMToolCall("close_application", {"application": app}),
+                    f"Closed {app}.",
+                ]
+
+        if any(phrase in t for phrase in ("switch to ", "focus on ", "focus ", "bring up ", "activate ")):
+            app = requested_app()
+            if not app:
+                app = cls._strip_noise(
+                    t, ["switch", "to", "focus", "on", "bring", "up", "activate", "please", "the", "app", "application"]
+                )
+            if app:
+                return [
+                    LLMToolCall("switch_to_application", {"application": app}),
+                    f"Switched to {app}.",
+                ]
+
         for key, exe in apps.items():
             if key in t and ("open " in t or "launch " in t or "start " in t or "run " in t):
                 return [LLMToolCall("open_application", {"application": exe}), f"Opening {key.title()}."]
