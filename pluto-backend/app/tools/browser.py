@@ -233,11 +233,17 @@ class BrowserManager:
 
     def _resolve_launch_target(self) -> Dict[str, Any]:
         """Decide which browser binary to use. Returns launch kwargs."""
-        headless = settings.pluto_browser_headless
-        if headless == "auto":
+        headless_setting = settings.pluto_browser_headless.lower().strip()
+        
+        # Parse headless setting: "auto" | "true" | "false"
+        if headless_setting == "auto":
             headless = not has_display()
+        elif headless_setting in ("true", "1", "yes"):
+            headless = True
+        else:  # "false", "0", "no", or anything else
+            headless = False
 
-        kwargs: Dict[str, Any] = {"headless": bool(headless)}
+        kwargs: Dict[str, Any] = {"headless": headless}
         executable = (
             os.environ.get("PLUTO_BROWSER_EXECUTABLE", "").strip()
             or settings.pluto_browser_executable.strip()
