@@ -1,9 +1,10 @@
 """Chat, command and loop event schemas."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Literal, List, Dict, Any
 
 
-# PLUTO States (matches frontend + Level 1 loop states)
+# PLUTO States (matches frontend + loop states). The StateMachine enum mirrors
+# this list, so every value here must exist in agent/state_machine.py.
 PlutoState = Literal[
     "idle",
     "listening",
@@ -11,7 +12,7 @@ PlutoState = Literal[
     "thinking",
     "planning",
     "executing",
-    "verifying",      # New: verification after execution
+    "verifying",
     "observing",
     "reasoning",
     "speaking",
@@ -19,11 +20,27 @@ PlutoState = Literal[
     "error",
 ]
 
+# Event types the backend can emit over the WebSocket.
+EventType = Literal[
+    "agent_state",
+    "execution_step",
+    "activity",
+    "action_preview",
+    "speak",
+    "error",
+    "session",
+    "silence",
+    "interrupted",
+]
+
+TtsEngine = Literal["elevenlabs", "browser", "local_tts"]
+
 
 class CommandRequest(BaseModel):
-    """User command/query request."""
-    command: str
+    """User command/query request (REST)."""
+    command: str = Field(..., min_length=1, max_length=4000)
     context: Optional[Dict[str, Any]] = None
+    session_id: Optional[str] = None
 
 
 class ExecutionStep(BaseModel):
@@ -41,7 +58,9 @@ class Activity(BaseModel):
     description: str
     timestamp: str
     status: Literal["running", "success", "info", "error"]
-    category: Optional[Literal["app", "file", "message", "system", "automation", "browser"]] = None
+    category: Optional[Literal[
+        "app", "file", "message", "system", "automation", "browser"
+    ]] = None
 
 
 class ActionPreview(BaseModel):
@@ -63,15 +82,12 @@ class SpeakEvent(BaseModel):
     text: str
     # base64-encoded audio bytes, or null => frontend uses browser speechSynthesis
     audio: Optional[str] = None
-    tts: Literal["elevenlabs", "browser", "local_tts"] = "browser"
+    tts: TtsEngine = "browser"
 
 
 class AgentStateEvent(BaseModel):
-    """WebSocket event for agent state changes."""
-    type: Literal[
-        "agent_state", "execution_step", "activity",
-        "action_preview", "speak", "error",
-    ]
+    """WebSocket event for agent state changes / session metadata."""
+    type: EventType
     state: Optional[PlutoState] = None
     task: Optional[str] = None
     step: Optional[ExecutionStep] = None
@@ -79,21 +95,25 @@ class AgentStateEvent(BaseModel):
     preview: Optional[ActionPreview] = None
     error: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+    # session info
+    session_id: Optional[str] = None
     # speak payload
     text: Optional[str] = None
     audio: Optional[str] = None
-    tts: Optional[Literal["elevenlabs", "browser", "local_tts"]] = None
+    tts: Optional[TtsEngine] = None
 
 
 class CommandResponse(BaseModel):
-    """Response to command execution."""
+    """Response to command execution (REST)."""
     success: bool
     message: str
     state: PlutoState
+    session_id: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
 
 
 class ConfirmRequest(BaseModel):
     """Frontend confirmation/rejection of a pending action."""
+    session_id: Optional[str] = None
     action: str
     approved: bool = True

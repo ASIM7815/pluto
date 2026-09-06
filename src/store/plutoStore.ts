@@ -15,8 +15,15 @@ interface PlutoStore {
   transcript: string;
   aiResponse: string | null;
   isSpeaking: boolean;
+  // Continuous-listening coordination: autoListen is the master switch,
+  // voiceEngaged remembers that the last command came from the microphone so
+  // PLUTO re-arms the mic (and only the mic) after it finishes speaking.
+  autoListen: boolean;
+  voiceEngaged: boolean;
 
   setState: (state: PlutoState) => void;
+  setVoiceEngaged: (engaged: boolean) => void;
+  setAutoListen: (value: boolean) => void;
   setCommand: (command: string) => void;
   setListening: (value: boolean) => void;
   setExecuting: (value: boolean) => void;
@@ -83,8 +90,12 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   transcript: "",
   aiResponse: null,
   isSpeaking: false,
+  autoListen: true,
+  voiceEngaged: false,
 
   setState: (state) => set({ state }),
+  setVoiceEngaged: (voiceEngaged) => set({ voiceEngaged }),
+  setAutoListen: (autoListen) => set({ autoListen }),
   setCommand: (currentCommand) => set({ currentCommand }),
   setListening: (isListening) => set({ isListening }),
   setExecuting: (isExecuting) => set({ isExecuting }),
@@ -117,6 +128,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
       errorMessage: null,
       transcript: "",
       aiResponse: null,
-      isSpeaking: false
+      isSpeaking: false,
+      voiceEngaged: false
     })
 }));

@@ -1,10 +1,12 @@
 """PLUTO Backend - FastAPI Application"""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+
+from app.api import routes_chat, routes_voice, routes_system, routes_tools
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
-from app.api import routes_chat, routes_voice, routes_system, routes_tools
 
 # Configure logging
 configure_logging()
@@ -13,12 +15,26 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
-    # Startup
-    logger.info("pluto_starting", version="1.0.0", env=settings.pluto_env)
+    """Application lifespan: open/close shared async clients."""
+    from app.llm.gpt_oss import gpt_oss_client
+    from app.voice.elevenlabs import elevenlabs_client
+    from app.tools.browser import browser_manager
+    from app.agent.context_manager import context_manager
+
+    logger.info(
+        "pluto_starting",
+        version="1.0.0",
+        env=settings.pluto_env,
+        llm_mock=settings.pluto_llm_mock_mode,
+        tts_mock=settings.pluto_tts_mock_mode,
+        active_contexts=context_manager.get_stats()["active_sessions"],
+    )
     yield
-    # Shutdown
+    # Shutdown: release resources gracefully.
     logger.info("pluto_shutdown")
+    await gpt_oss_client.close()
+    await elevenlabs_client.close()
+    await browser_manager.close()
 
 
 # Create FastAPI app
@@ -26,7 +42,7 @@ app = FastAPI(
     title="PLUTO AI Assistant Backend",
     description="Futuristic AI Desktop Assistant for Linux",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -52,7 +68,7 @@ async def root():
         "name": "PLUTO AI Assistant",
         "version": "1.0.0",
         "status": "operational",
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 
@@ -63,17 +79,19 @@ async def health_check():
         "status": "healthy",
         "agent": "PLUTO",
         "backend": "FastAPI",
-        "environment": settings.pluto_env
+        "environment": settings.pluto_env,
+        "llm_mock": settings.pluto_llm_mock_mode,
+        "tts_mock": settings.pluto_tts_mock_mode,
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "app.main:app",
         host=settings.pluto_backend_host,
         port=settings.pluto_backend_port,
         reload=settings.pluto_env == "development",
-        log_level=settings.pluto_log_level.lower()
+        log_level=settings.pluto_log_level.lower(),
     )

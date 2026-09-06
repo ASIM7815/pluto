@@ -10,9 +10,18 @@ import { useSystemStats } from "@/hooks/useSystemStats";
 import { systemService } from "@/services/system";
 import { aiService } from "@/services/ai";
 
+interface SystemInfo {
+  os?: string;
+  distro?: string;
+  host?: string;
+  uptime?: string;
+  voiceEngine?: string;
+  llmEngine?: string;
+}
+
 export default function SystemPage() {
   const metrics = useSystemStats(2000);
-  const [sysInfo, setSysInfo] = useState<any>({
+  const [sysInfo, setSysInfo] = useState<SystemInfo>({
     os: "Linux",
     distro: "Loading...",
     host: "-",

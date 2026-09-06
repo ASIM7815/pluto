@@ -8,9 +8,28 @@ interface PlutoOrbProps {
   size?: number;
 }
 
+// Sketchfab embeds extra attributes that are not in React's iframe typings;
+// they are passed through verbatim to the browser.
+const SKETCHFAB_IFRAME_ATTRS = {
+  frameBorder: "0",
+  allowFullScreen: true,
+  mozallowfullscreen: "true",
+  webkitallowfullscreen: "true",
+  allow: "autoplay; fullscreen; xr-spatial-tracking",
+  "xr-spatial-tracking": "true",
+  "execution-while-out-of-viewport": "true",
+  "execution-while-not-rendered": "true",
+  "web-share": "true",
+  src: "https://sketchfab.com/models/fb78f4cc938144e6902dd5cff354d525/embed?ui_animations=0&ui_stop=0&ui_inspector=0&ui_hint=0&ui_ar=0&ui_help=0&ui_settings=0&ui_vr=0&ui_fullscreen=0&ui_annotations=0&dnt=1&autostart=1&transparent=1&ui_infos=0&ui_controls=1&ui_watermark=0&ui_theme=dark",
+} as unknown as React.IframeHTMLAttributes<HTMLIFrameElement>;
+
 export function PlutoOrb({ state, size = 420 }: PlutoOrbProps) {
   return (
-    <div className="relative flex items-center justify-center my-2">
+    <div
+      className="relative flex items-center justify-center my-2"
+      data-state={state}
+      aria-label={`PLUTO orb - ${state}`}
+    >
       {/* Background Radial Glow */}
       <div
         className="absolute rounded-full pointer-events-none transition-all duration-700 blur-3xl opacity-30"
@@ -30,18 +49,7 @@ export function PlutoOrb({ state, size = 420 }: PlutoOrbProps) {
           title="A Windy Day"
           className="w-full h-full rounded-lg"
           style={{ border: "none" }}
-          {...({
-            frameBorder: "0",
-            allowFullScreen: true,
-            mozallowfullscreen: "true",
-            webkitallowfullscreen: "true",
-            allow: "autoplay; fullscreen; xr-spatial-tracking",
-            "xr-spatial-tracking": "true",
-            "execution-while-out-of-viewport": "true",
-            "execution-while-not-rendered": "true",
-            "web-share": "true",
-            src: "https://sketchfab.com/models/fb78f4cc938144e6902dd5cff354d525/embed?ui_animations=0&ui_stop=0&ui_inspector=0&ui_hint=0&ui_ar=0&ui_help=0&ui_settings=0&ui_vr=0&ui_fullscreen=0&ui_annotations=0&dnt=1&autostart=1&transparent=1&ui_infos=0&ui_controls=1&ui_watermark=0&ui_theme=dark",
-          } as any)}
+          {...SKETCHFAB_IFRAME_ATTRS}
         />
       </div>
     </div>

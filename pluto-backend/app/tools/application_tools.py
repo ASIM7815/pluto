@@ -1,401 +1,352 @@
-"""Application Management Tools - Open, close, switch applications using terminal"""
-import shlex
-from typing import Optional, Dict, Any, List
-from app.tools.terminal_base import TerminalTool, ToolResult, SafetyLevel, VerificationMixin
+"""Application Management Tools - open, close, switch, list applications.
+
+Launches are real subprocesses; success is only reported after the target
+process is observed running. GUI operations require a graphical session.
+"""
+from __future__ import annotations
+
+import asyncio
+import os
+import shutil
+from typing import Any, Dict, List, Optional
+
 from app.core.logging import get_logger
+from app.tools.terminal_base import (
+    TerminalTool,
+    ToolResult,
+    SafetyLevel,
+    VerificationMixin,
+    command_exists,
+    has_display,
+    human_display_hint,
+)
 
 logger = get_logger(__name__)
 
-
-# Common Linux applications and their executables
-APP_MAPPINGS = {
+# Common Linux applications -> (executable, description). The executable is
+# resolved against PATH with `which`, so an uninstalled app fails honestly.
+APP_MAPPINGS: Dict[str, str] = {
     # Browsers
     "firefox": "firefox",
+    "browser": "firefox",
     "chrome": "google-chrome",
+    "google chrome": "google-chrome",
     "chromium": "chromium",
     "brave": "brave-browser",
     "edge": "microsoft-edge",
-    
-    # Code Editors
+    # Code editors
     "vscode": "code",
     "vs code": "code",
+    "visual studio code": "code",
     "code": "code",
     "sublime": "subl",
-    "atom": "atom",
+    "sublime text": "subl",
     "vim": "vim",
     "emacs": "emacs",
-    
-    # File Managers
+    # File managers
     "files": "nautilus",
     "file manager": "nautilus",
     "dolphin": "dolphin",
     "thunar": "thunar",
-    
     # Terminals
     "terminal": "gnome-terminal",
     "konsole": "konsole",
     "xterm": "xterm",
     "alacritty": "alacritty",
-    
+    "gnome terminal": "gnome-terminal",
     # Communication
     "slack": "slack",
     "discord": "discord",
     "telegram": "telegram-desktop",
+    "whatsapp": "whatsapp-for-linux",
     "zoom": "zoom",
-    "teams": "teams",
-    
     # Productivity
     "libreoffice": "libreoffice",
-    "writer": "libreoffice --writer",
-    "calc": "libreoffice --calc",
+    "writer": "libreoffice",
+    "calc": "libreoffice",
     "gimp": "gimp",
     "inkscape": "inkscape",
     "obs": "obs",
-    
+    "calculator": "gnome-calculator",
+    "settings": "gnome-control-center",
+    "control center": "gnome-control-center",
     # Media
     "vlc": "vlc",
     "spotify": "spotify",
     "audacity": "audacity",
+    "youtube": "firefox",
+    "yt": "firefox",
 }
+
+# Executables that are terminal programs (safe without a graphical session).
+_TERMINAL_PROGRAMS = {"vim", "emacs", "htop", "top", "git", "bash", "zsh"}
+
+
+def resolve_executable(app_name: str) -> str:
+    """Map a spoken app name to an executable, falling back to the raw name."""
+    key = app_name.lower().strip()
+    executable = APP_MAPPINGS.get(key, key)
+    # Normalise "vs code" -> code style aliases handled by mapping above.
+    return executable.split()[0] if executable else key
 
 
 class OpenApplicationTool(TerminalTool, VerificationMixin):
-    """Open an application"""
-    
+    """Open (launch) an application."""
+
     name = "open_application"
-    description = "Opens an application on the desktop. Works for browsers, editors, file managers, and other GUI applications."
+    description = (
+        "Opens/launches a desktop application (e.g. firefox, vscode, spotify, "
+        "nautilus). Reports success only after the app process is verified running."
+    )
     safety_level = SafetyLevel.SAFE
-    
+    category = "application"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "application": {
                     "type": "string",
-                    "description": "Application name (e.g., 'firefox', 'vscode', 'spotify')"
-                }
+                    "description": "Application name (e.g. 'firefox', 'vscode', 'spotify')",
+                },
+                "arguments": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional CLI arguments (e.g. a file/folder to open)",
+                },
             },
-            "required": ["application"]
+            "required": ["application"],
         }
-    
-    async def execute(self, application: str, **kwargs) -> ToolResult:
-        """
-        Open an application
-        
-        Args:
-            application: Application name
-            
-        Returns:
-            ToolResult
-        """
-        # Normalize application name
-        app_lower = application.lower().strip()
-        
-        # Get executable name
-        executable = APP_MAPPINGS.get(app_lower, app_lower)
-        
-        # Check if already running
-        process_name = executable.split()[0]  # Get base command
-        already_running = await self.check_process_running(process_name)
-        
-        if already_running:
-            logger.info("application_already_running", app=application)
-            return ToolResult(
-                success=True,
-                message=f"{application} is already running",
-                data={"already_running": True},
-                context_updates={"current_app": process_name}
+
+    async def execute(self, application: str, arguments: Optional[List[str]] = None, **kwargs) -> ToolResult:
+        if not application or not str(application).strip():
+            return ToolResult.fail(self.name, "No application name was provided.", error_code="BAD_ARGUMENTS")
+        app_name = str(application)
+        executable = resolve_executable(app_name)
+        resolved = shutil.which(executable)
+
+        if not resolved:
+            return ToolResult.fail(
+                self.name,
+                f"'{app_name}' does not appear to be installed (no '{executable}' on PATH). "
+                "I can't open an application that isn't on this system.",
+                error_code="APP_NOT_FOUND",
             )
-        
-        # Launch application in background
-        result = await self.run_command(
-            f"{executable} &",
-            shell=True,
-            check_exit_code=False  # Background process returns immediately
+
+        if executable not in _TERMINAL_PROGRAMS and not has_display():
+            return ToolResult.fail(
+                self.name,
+                f"I can't open {app_name} right now: {human_display_hint()}",
+                error_code="NO_DISPLAY",
+            )
+
+        base_proc = os.path.basename(resolved)
+        if await self.check_process_running(base_proc):
+            return ToolResult.ok(
+                self.name,
+                message=f"{app_name} is already running.",
+                data={"already_running": True, "process": base_proc},
+                context_updates={"current_app": base_proc},
+            )
+
+        cmd = [resolved] + (list(arguments or []))
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except FileNotFoundError:
+            return ToolResult.fail(self.name, f"Executable not found: {executable}", error_code="APP_NOT_FOUND")
+        except OSError as e:
+            return ToolResult.fail(self.name, f"Failed to launch {app_name}: {e}", error_code="LAUNCH_FAILED")
+
+        await asyncio.sleep(1.0)
+        started = await self.verify_process_started(base_proc, timeout=6)
+
+        if not started:
+            logger.warning("application_open_failed", app=app_name, executable=executable)
+            return ToolResult.fail(
+                self.name,
+                f"I tried to open {app_name} but the process did not start.",
+                error_code="LAUNCH_FAILED",
+            )
+
+        logger.info("application_opened", app=app_name, executable=executable)
+        return ToolResult.ok(
+            self.name,
+            message=f"Opened {app_name}.",
+            data={"process": base_proc, "executable": executable, "pid": process.pid or None},
+            verification_passed=True,
+            context_updates={"current_app": base_proc},
         )
-        
-        # Give it a moment to start
-        import asyncio
-        await asyncio.sleep(1)
-        
-        # Verify it started
-        is_running = await self.verify_process_started(process_name, timeout=5)
-        
-        if is_running:
-            logger.info("application_opened", app=application, executable=executable)
-            return ToolResult(
-                success=True,
-                message=f"Opened {application}",
-                output=f"Process {process_name} started",
-                verification_passed=True,
-                data={"process_name": process_name, "executable": executable},
-                context_updates={"current_app": process_name}
-            )
-        else:
-            logger.warning("application_open_failed", app=application)
-            return ToolResult(
-                success=False,
-                message=f"Failed to open {application}",
-                error=f"Process {process_name} did not start",
-                verification_passed=False
-            )
-    
-    async def verify(self, result: ToolResult, application: str, **kwargs) -> bool:
-        """Verify application opened"""
-        if not result.success:
-            return False
-        
-        process_name = result.data.get("process_name") if result.data else None
-        if not process_name:
-            return False
-        
-        return await self.check_process_running(process_name)
 
 
 class CloseApplicationTool(TerminalTool, VerificationMixin):
-    """Close an application"""
-    
+    """Close a running application."""
+
     name = "close_application"
-    description = "Closes a running application gracefully. Use for applications you want to terminate."
-    safety_level = SafetyLevel.CONFIRM_REQUIRED  # Ask before closing
-    
+    description = "Closes a running application (graceful, then force-kill if requested)."
+    safety_level = SafetyLevel.CONFIRM_REQUIRED
+    category = "application"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "application": {
-                    "type": "string",
-                    "description": "Application name to close"
-                },
-                "force": {
-                    "type": "boolean",
-                    "description": "Force kill if graceful close fails",
-                    "default": False
-                }
+                "application": {"type": "string", "description": "Application name to close"},
+                "force": {"type": "boolean", "description": "Force kill if graceful close fails", "default": False},
             },
-            "required": ["application"]
+            "required": ["application"],
         }
-    
+
     async def execute(self, application: str, force: bool = False, **kwargs) -> ToolResult:
-        """
-        Close an application
-        
-        Args:
-            application: Application name
-            force: Force kill if needed
-            
-        Returns:
-            ToolResult
-        """
-        # Get process name
-        app_lower = application.lower().strip()
-        executable = APP_MAPPINGS.get(app_lower, app_lower)
-        process_name = executable.split()[0]
-        
-        # Check if running
-        is_running = await self.check_process_running(process_name)
-        if not is_running:
-            return ToolResult(
-                success=True,
-                message=f"{application} is not running",
-                data={"was_running": False}
+        executable = resolve_executable(str(application))
+        proc_name = os.path.basename(executable)
+
+        if not await self.check_process_running(proc_name):
+            return ToolResult.ok(
+                self.name, message=f"{application} is not running.", data={"was_running": False}
             )
-        
-        # Try graceful close first (SIGTERM)
-        result = await self.run_command(
-            f"pkill {process_name}",
-            check_exit_code=False
-        )
-        
-        # Wait for process to end
-        import asyncio
-        await asyncio.sleep(2)
-        
-        # Check if closed
-        still_running = await self.check_process_running(process_name)
-        
-        if not still_running:
-            logger.info("application_closed", app=application, method="graceful")
-            return ToolResult(
-                success=True,
-                message=f"Closed {application}",
-                output="Process terminated gracefully",
+
+        await self.run_command(["pkill", "-x", proc_name], check_exit_code=False)
+        await asyncio.sleep(1.5)
+
+        if not await self.check_process_running(proc_name):
+            return ToolResult.ok(
+                self.name,
+                message=f"Closed {application}.",
+                data={"was_running": True},
                 verification_passed=True,
-                context_updates={"current_app": None}
+                context_updates={"current_app": None},
             )
-        
-        # If force enabled and still running, kill it
+
         if force:
-            await self.run_command(
-                f"pkill -9 {process_name}",
-                check_exit_code=False
-            )
-            await asyncio.sleep(1)
-            
-            still_running = await self.check_process_running(process_name)
-            if not still_running:
-                logger.info("application_closed", app=application, method="force_kill")
-                return ToolResult(
-                    success=True,
-                    message=f"Force closed {application}",
-                    output="Process force killed",
+            await self.run_command(["pkill", "-9", "-x", proc_name], check_exit_code=False)
+            await asyncio.sleep(1.0)
+            if not await self.check_process_running(proc_name):
+                return ToolResult.ok(
+                    self.name,
+                    message=f"Force closed {application}.",
+                    data={"was_running": True, "forced": True},
                     verification_passed=True,
-                    context_updates={"current_app": None}
+                    context_updates={"current_app": None},
                 )
-        
-        logger.warning("application_close_failed", app=application)
-        return ToolResult(
-            success=False,
-            message=f"Failed to close {application}",
-            error="Process still running",
-            verification_passed=False
+
+        return ToolResult.fail(
+            self.name,
+            f"I could not close {application}; the process is still running.",
+            error_code="CLOSE_FAILED",
         )
 
 
 class SwitchToApplicationTool(TerminalTool, VerificationMixin):
-    """Switch to (focus) an application window"""
-    
+    """Switch focus to an application window."""
+
     name = "switch_to_application"
-    description = "Switches focus to an application window. Brings the application to the foreground."
+    description = "Brings an already-running application's window to the foreground."
     safety_level = SafetyLevel.SAFE
-    
+    category = "application"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "application": {
-                    "type": "string",
-                    "description": "Application name to switch to"
-                }
+                "application": {"type": "string", "description": "Application name to focus"}
             },
-            "required": ["application"]
+            "required": ["application"],
         }
-    
+
     async def execute(self, application: str, **kwargs) -> ToolResult:
-        """
-        Switch to application window
-        
-        Args:
-            application: Application name
-            
-        Returns:
-            ToolResult
-        """
-        # Get process name
-        app_lower = application.lower().strip()
-        executable = APP_MAPPINGS.get(app_lower, app_lower)
-        process_name = executable.split()[0]
-        
-        # Check if running
-        is_running = await self.check_process_running(process_name)
-        if not is_running:
-            return ToolResult(
-                success=False,
-                message=f"{application} is not running. Cannot switch to it.",
-                error="Application not running"
+        if not has_display():
+            return ToolResult.fail(self.name, human_display_hint(), error_code="NO_DISPLAY")
+        proc_name = os.path.basename(resolve_executable(str(application)))
+        if not await self.check_process_running(proc_name):
+            return ToolResult.fail(
+                self.name,
+                f"{application} is not running, so I can't switch to it.",
+                error_code="APP_NOT_RUNNING",
             )
-        
-        # Try wmctrl first (most reliable)
-        result = await self.run_command(
-            f"wmctrl -a {shlex.quote(application)}",
-            check_exit_code=False
-        )
-        
-        if result.success or result.exit_code == 0:
-            logger.info("window_switched", app=application, method="wmctrl")
-            return ToolResult(
-                success=True,
-                message=f"Switched to {application}",
-                output="Window activated",
-                verification_passed=True,
-                context_updates={"current_app": process_name, "active_window": application}
+
+        if command_exists("wmctrl"):
+            result = await self.run_command(
+                ["wmctrl", "-a", str(application)], check_exit_code=False
             )
-        
-        # Fallback: Try xdotool
-        result = await self.run_command(
-            f"xdotool search --name {shlex.quote(application)} windowactivate",
-            shell=True,
-            check_exit_code=False
-        )
-        
-        if result.success:
-            logger.info("window_switched", app=application, method="xdotool")
-            return ToolResult(
-                success=True,
-                message=f"Switched to {application}",
-                output="Window activated",
-                verification_passed=True,
-                context_updates={"current_app": process_name, "active_window": application}
+            if result.success:
+                return ToolResult.ok(
+                    self.name, message=f"Switched to {application}.",
+                    verification_passed=True,
+                    context_updates={"active_window": str(application), "current_app": proc_name},
+                )
+        if command_exists("xdotool"):
+            result = await self.run_command(
+                ["xdotool", "search", "--name", str(application), "windowactivate"],
+                check_exit_code=False,
             )
-        
-        logger.warning("window_switch_failed", app=application)
-        return ToolResult(
-            success=False,
-            message=f"Failed to switch to {application}",
-            error="Could not find or activate window"
+            if result.success:
+                return ToolResult.ok(
+                    self.name, message=f"Switched to {application}.",
+                    verification_passed=True,
+                    context_updates={"active_window": str(application), "current_app": proc_name},
+                )
+        return ToolResult.fail(
+            self.name,
+            f"Could not focus {application} (needs wmctrl or xdotool, and a matching window).",
+            error_code="FOCUS_FAILED",
         )
 
 
 class ListRunningApplicationsTool(TerminalTool):
-    """List all running GUI applications"""
-    
+    """List running GUI applications."""
+
     name = "list_running_applications"
-    description = "Lists all currently running GUI applications with window titles."
+    description = "Lists the GUI applications currently running on the desktop."
     safety_level = SafetyLevel.SAFE
-    
+    category = "application"
+
     def get_parameters_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-    
+        return {"type": "object", "properties": {}, "required": []}
+
     async def execute(self, **kwargs) -> ToolResult:
-        """
-        List running applications
-        
-        Returns:
-            ToolResult with list of applications
-        """
-        # Use wmctrl to list windows
-        result = await self.run_command(
-            "wmctrl -l -p",
-            check_exit_code=False
-        )
-        
-        if not result.success or not result.output:
-            # Fallback: use ps to list GUI processes
-            result = await self.run_command(
-                "ps aux | grep -E 'firefox|chrome|code|nautilus|terminal' | grep -v grep",
-                shell=True,
-                check_exit_code=False
-            )
-        
-        apps = []
-        if result.output:
-            for line in result.output.split('\n'):
-                if line.strip():
+        apps: List[Dict[str, Any]] = []
+
+        if command_exists("wmctrl"):
+            result = await self.run_command(["wmctrl", "-l", "-p"], check_exit_code=False)
+            if result.output:
+                for line in result.output.splitlines():
                     parts = line.split(None, 4)
                     if len(parts) >= 5:
                         apps.append({
-                            "window_id": parts[0],
-                            "desktop": parts[1],
-                            "pid": parts[2],
-                            "title": parts[4] if len(parts) > 4 else "Unknown"
+                            "window_id": parts[0], "desktop": parts[1],
+                            "pid": parts[2], "title": parts[4],
                         })
-        
-        logger.info("applications_listed", count=len(apps))
-        return ToolResult(
-            success=True,
-            message=f"Found {len(apps)} running applications",
-            output=result.output,
+        if not apps and command_exists("pgrep"):
+            # Headless-ish fallback: report known GUI processes by name.
+            known = ["firefox", "google-chrome", "chromium", "code", "nautilus",
+                     "gnome-terminal", "spotify", "vlc", "slack", "discord"]
+            result = await self.run_command(["pgrep", "-l"] + known, check_exit_code=False)
+            if result.output:
+                for line in result.output.splitlines():
+                    parts = line.split(None, 1)
+                    if len(parts) == 2:
+                        apps.append({"pid": parts[0], "title": parts[1]})
+
+        if not apps:
+            return ToolResult.ok(
+                self.name,
+                message="No GUI applications appear to be running (or no window manager is reachable).",
+                data={"applications": [], "count": 0},
+            )
+        return ToolResult.ok(
+            self.name,
+            message=f"Found {len(apps)} running application(s).",
             data={"applications": apps, "count": len(apps)},
-            context_updates={"running_apps": [app["title"] for app in apps]}
+            context_updates={"running_apps": [a.get("title", "") for a in apps if a.get("title")]},
         )
 
 
-# Register all tools
-APPLICATION_TOOLS = [
+APPLICATION_TOOLS: List[TerminalTool] = [
     OpenApplicationTool(),
     CloseApplicationTool(),
     SwitchToApplicationTool(),
