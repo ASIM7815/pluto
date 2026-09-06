@@ -45,6 +45,14 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 SILENCE_KEYWORDS = ["silence", "stop listening", "be quiet", "shut up", "stop talking", "be silent", "go silent"]
 
+# Bare phrases that mean "abort what you're doing" - only when they arrive as
+# the ENTIRE command ("stop" interrupts, but "stop the music" is a real task).
+INTERRUPT_PHRASES = {
+    "stop", "stop it", "stop pluto", "cancel", "abort", "never mind", "nevermind",
+    "quiet", "silence", "shut up", "stop talking", "stop speaking", "be quiet",
+    "go to sleep", "sleep",
+}
+
 
 class ResetRequest(BaseModel):
     session_id: Optional[str] = None
@@ -174,16 +182,28 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not command:
                     continue
                 logger.info("command_ws", command=command, session=session.id)
-                if any(k in command.lower() for k in SILENCE_KEYWORDS):
-                    await session.push(AgentStateEvent(
-                        type="agent_state", state="idle",
-                        task="Going silent.", data={"response": "Going silent."},
-                        session_id=session.id,
-                    ))
-                    await session.push(AgentStateEvent(
-                        type="silence", state="idle",
-                        task="Silence mode activated", session_id=session.id,
-                    ))
+                normalized = command.lower().strip(" .!,?")
+                is_silence = any(k in command.lower() for k in SILENCE_KEYWORDS)
+                if is_silence or normalized in INTERRUPT_PHRASES:
+                    was_busy = session.is_busy or session.state_machine.is_busy()
+                    if was_busy:
+                        # Voice barge-in: abort the running task & speech.
+                        session.interrupt()
+                        await session.push(AgentStateEvent(
+                            type="agent_state", state="idle",
+                            task="Stopped, BOSS.", data={"response": "Stopped, BOSS."},
+                            session_id=session.id,
+                        ))
+                    else:
+                        await session.push(AgentStateEvent(
+                            type="agent_state", state="idle",
+                            task="Going silent.", data={"response": "Going silent."},
+                            session_id=session.id,
+                        ))
+                        await session.push(AgentStateEvent(
+                            type="silence", state="idle",
+                            task="Silence mode activated", session_id=session.id,
+                        ))
                 else:
                     session_manager.submit_command(session, command)
 

@@ -48,6 +48,26 @@ class Settings(BaseSettings):
     # ---- Browser automation ----
     # "auto" => headless only when no graphical display is available.
     pluto_browser_headless: str = "auto"
+    # Path to the browser PLUTO should drive. Empty = auto-detect the user's
+    # REAL installed browser (google-chrome > chromium > brave > edge) so
+    # PLUTO never silently falls back to Playwright's bundled copy while a
+    # real Chrome is installed on the machine.
+    pluto_browser_executable: str = ""
+    # Optional playwright channel hint (e.g. "chrome", "msedge"). Empty = none.
+    pluto_browser_channel: str = ""
+    # Persistent profile: PLUTO keeps its own Chrome profile (cookies, logins,
+    # history) between runs, so "open YouTube" opens in a window that stays
+    # logged in. Set false for an ephemeral browser each time.
+    pluto_browser_persistent_profile: bool = True
+    pluto_browser_profile_dir: str = "~/.pluto/browser-profile"
+
+    # ---- Voice / STT ----
+    pluto_stt_language: str = "en-US"
+
+    # ---- Response style: concise | friendly | detailed ----
+    # friendly (default): PLUTO is communicative - a couple of warm sentences
+    # that say what it did, whether it verified the result, and what's next.
+    pluto_response_style: str = "friendly"
 
     # ---- Messaging integration (see app/tools/messaging.py) ----
     # Executable invoked with (recipient, message) args; exit 0 = delivered.

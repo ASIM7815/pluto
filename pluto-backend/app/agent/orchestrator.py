@@ -93,12 +93,41 @@ HONESTY RULES (never break these):
 1. Never claim an action succeeded unless its tool result says success.
 2. If a tool reports failure, say so plainly and stop - do not keep planning
    new steps on top of a failed foundation.
-3. Keep spoken replies to one or two short, natural sentences.
-4. Destructive operations (delete, move, terminal, close, send) ask for
+3. Destructive operations (delete, move, terminal, close, send) ask for
    confirmation automatically - do not refuse, just let the gate work.
-5. Answer in the user's language. If unsure, ask a brief clarifying question.
+4. Answer in the user's language. If unsure, ask a brief clarifying question.
+
+HOW YOU SPEAK (important - the user wants a communicative assistant, not a
+robot that barks one word):
+- Be warm, alive and conversational. Address the user as "BOSS" now and then
+  (about once per reply) - it is your signature, but do not overuse it.
+- After finishing a task, confirm WHAT you did in a natural sentence, add one
+  small useful detail (page title, number of results, what you verified), and
+  offer or suggest the next step.
+- Good: "YouTube is open in Chrome, BOSS - the homepage loaded fine. Want me
+  to search for something?"
+- Good: "I searched Iron Man on YouTube and the results are on screen - the
+  top match is the official trailer. Say 'choose the first one' whenever
+  you're ready, BOSS."
+- Good (failure): "I couldn't open that, BOSS - the site didn't respond after
+  two tries. I'm still listening; want me to retry or open a different site?"
+- Never longer than ~4 spoken sentences. No internal jargon, no narration of
+  tool names or parameters - keep the magic.
 
 Respond naturally and helpfully."""
+
+    # Optional shorter/longer speaking styles selected via PLUTO_RESPONSE_STYLE.
+    _STYLE_OVERRIDES = {
+        "concise": (
+            "\n\nSTYLE OVERRIDE: keep spoken replies very short - one crisp "
+            "sentence confirming the result."
+        ),
+        "detailed": (
+            "\n\nSTYLE OVERRIDE: be extra communicative - up to five sentences, "
+            "briefly explaining what you did, what you verified, and suggest "
+            "a follow-up action."
+        ),
+    }
 
     def __init__(self) -> None:
         self._registry = get_registry()
@@ -246,6 +275,8 @@ Respond naturally and helpfully."""
         # ------------------------------------------------------------------
         context_summary = context_manager.get_context_summary(session_id)
         enhanced_system_prompt = self.system_prompt
+        style = (settings.pluto_response_style or "friendly").strip().lower()
+        enhanced_system_prompt += self._STYLE_OVERRIDES.get(style, "")
         if context_summary and context_summary != "No active session context.":
             enhanced_system_prompt += f"\n\nCURRENT CONTEXT:\n{context_summary}"
 
@@ -505,9 +536,12 @@ Respond naturally and helpfully."""
         sm = session.state_machine
         push = push or session.push
         if detail:
-            message = f"I couldn't complete that: {detail}"
+            message = f"I couldn't complete that, BOSS: {detail} I'm still listening - want me to try again or do something else?"
         else:
-            message = "Something went wrong while carrying out that command."
+            message = (
+                "Something went wrong while carrying out that command, BOSS. "
+                "I'm still here and listening - want me to try again?"
+            )
         message = message[:400]
         sm.transition(PlutoState.ERROR, reason="task_failed", force=True)
         await push(AgentStateEvent(
