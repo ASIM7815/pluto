@@ -25,10 +25,15 @@ function getSessionId(): string {
 
 function wsUrl(): string {
   if (typeof window === "undefined") return "ws://127.0.0.1:8765/api/chat/ws";
-  // WebSocket connections bypass Next.js rewrites - connect directly to backend
-  // Use environment variable or default to localhost:8765
-  const backendWsUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://127.0.0.1:8765";
-  return `${backendWsUrl}/api/chat/ws?session_id=${encodeURIComponent(
+  const configured = process.env.NEXT_PUBLIC_BACKEND_WS_URL;
+  if (configured) {
+    return `${configured.replace(/\/$/, "")}/api/chat/ws?session_id=${encodeURIComponent(getSessionId())}`;
+  }
+
+  // Route through the same public Next.js origin. This is essential for
+  // remote/HTTPS previews, where the user's browser cannot reach localhost.
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/api/backend/chat/ws?session_id=${encodeURIComponent(
     getSessionId()
   )}`;
 }
