@@ -70,11 +70,33 @@ class BrowserManager:
     def available(self) -> bool:
         return _PLAYWRIGHT_AVAILABLE
 
+    async def _is_browser_alive(self) -> bool:
+        """Check if browser and page are still alive and usable."""
+        if not self._browser or not self._page:
+            return False
+        try:
+            # Check if browser is still connected
+            if not self._browser.is_connected():
+                return False
+            # Check if page is still valid by accessing a simple property
+            _ = self._page.url
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
     async def _ensure(self) -> ToolResult:
         if not _PLAYWRIGHT_AVAILABLE:
             return ToolResult.fail("browser", _MISSING_HINT, error_code="MISSING_DEPENDENCY")
+        
+        # Check if existing browser is still alive
         if self._browser and self._page:
-            return ToolResult.ok("browser", "ready")
+            if await self._is_browser_alive():
+                return ToolResult.ok("browser", "ready")
+            else:
+                # Browser was closed, clean up and reopen
+                logger.info("browser_closed_detected", action="reopening")
+                await self._close_unlocked()
+        
         try:
             self._pw = await async_playwright().start()
             headless = settings.pluto_browser_headless
