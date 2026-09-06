@@ -16,6 +16,7 @@ export const aiService = {
   ws: null as WebSocket | null,
   reconnectAttempts: 0,
   maxReconnectAttempts: 5,
+  voiceRecognition: null as any,
 
   connectWebSocket(): void {
     if (this.ws?.readyState === WebSocket.OPEN) return;
@@ -55,6 +56,20 @@ export const aiService = {
     const store = usePlutoStore.getState();
 
     switch (data.type) {
+      case "silence":
+        // User said "silence" - stop listening mode
+        console.log("🔇 Silence mode activated");
+        store.setListening(false);
+        store.setState("idle");
+        if (data.data?.response) {
+          store.setAiResponse(data.data.response);
+        }
+        // Stop any active voice recognition
+        if (this.voiceRecognition) {
+          this.voiceRecognition.stop();
+        }
+        break;
+
       case "agent_state":
         if (data.state) {
           // Don't switch away from SPEAKING mid-utterance; tts.ts sets LISTENING

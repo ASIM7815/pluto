@@ -1,15 +1,17 @@
-"""Tool introspection routes - Enhanced for Level 1"""
+"""API endpoints for PLUTO Level 1 tool system and context management"""
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
-from app.agent.tool_registry import tool_registry
-from app.tools.registry import get_registry as get_tool_registry_v2
-from app.agent.context_manager import ContextManager
-from app.agent.state_machine import StateMachine
 from app.schemas.tools import (
+    ToolInfo,
+    ToolRegistryInfo,
     ToolExecutionRequest,
+    ToolExecutionResult,
+    ContextSummary,
     ContextUpdateRequest,
     IntentAnalysisRequest,
+    IntentAnalysisResponse,
+    UserIntent,
     ToolRecommendationRequest,
     ToolRecommendationResponse,
     ToolRecommendation,
@@ -18,6 +20,9 @@ from app.schemas.tools import (
     SystemStatus,
     SystemCapabilities,
 )
+from app.tools.registry import get_registry
+from app.agent.context_manager import ContextManager
+from app.agent.state_machine import StateMachine
 from app.core.logging import get_logger
 import time
 
@@ -25,7 +30,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/tools", tags=["tools"])
 
 # Global instances
-tool_registry_v2 = get_tool_registry_v2()
+tool_registry = get_registry()
 context_manager = ContextManager()
 state_machine = StateMachine()
 
@@ -33,67 +38,49 @@ state_machine = StateMachine()
 START_TIME = time.time()
 
 
-@router.get("")
-async def list_tools() -> dict:
-    """List all registered tools and their permission levels."""
-    return {
-        "tools": tool_registry.list_tools(),
-        "count": len(tool_registry.tools),
-    }
-
-
-@router.get("/permissions")
-async def tool_permissions() -> dict:
-    """Return the permissions matrix."""
-    return {tool_registry.tools[name]["definition"].name: tool_registry.get_permission_level(name)
-            for name in tool_registry.tools}
-
-
-# V2 Endpoints (Level 1)
-
-@router.get("/v2/registry")
-async def get_tool_registry_v2():
-    """Get information about all V2 registered tools"""
+@router.get("/registry", response_model=Dict[str, Any])
+async def get_tool_registry():
+    """Get information about all registered tools"""
     try:
-        info = tool_registry_v2.get_tool_info()
-        logger.info("tool_registry_v2_fetched", total_tools=info["total_tools"])
+        info = tool_registry.get_tool_info()
+        logger.info("tool_registry_fetched", total_tools=info["total_tools"])
         return info
     except Exception as e:
-        logger.error("tool_registry_v2_error", error=str(e))
+        logger.error("tool_registry_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/v2/list")
-async def list_tools_v2(category: Optional[str] = None):
-    """List all V2 tools, optionally filtered by category"""
+@router.get("/tools", response_model=List[Dict[str, Any]])
+async def list_tools(category: str = None):
+    """List all tools, optionally filtered by category"""
     try:
         if category:
-            tools = tool_registry_v2.get_tools_by_category(category)
+            tools = tool_registry.get_tools_by_category(category)
         else:
-            tools = tool_registry_v2.get_all_tools()
+            tools = tool_registry.get_all_tools()
         
         tool_list = [
             {
                 "name": tool.name,
                 "description": tool.description,
                 "safety_level": tool.safety_level,
-                "category": tool_registry_v2._get_tool_category(tool.name)
+                "category": tool_registry._get_tool_category(tool.name)
             }
             for tool in tools
         ]
         
-        logger.info("tools_v2_listed", count=len(tool_list), category=category)
-        return {"tools": tool_list, "count": len(tool_list)}
+        logger.info("tools_listed", count=len(tool_list), category=category)
+        return tool_list
     except Exception as e:
-        logger.error("tools_v2_list_error", error=str(e))
+        logger.error("tools_list_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/v2/{tool_name}")
-async def get_tool_details_v2(tool_name: str):
-    """Get details for a specific V2 tool"""
+@router.get("/tools/{tool_name}", response_model=Dict[str, Any])
+async def get_tool_details(tool_name: str):
+    """Get details for a specific tool"""
     try:
-        tool = tool_registry_v2.get_tool(tool_name)
+        tool = tool_registry.get_tool(tool_name)
         if not tool:
             raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
         
@@ -102,21 +89,21 @@ async def get_tool_details_v2(tool_name: str):
             "name": tool.name,
             "description": tool.description,
             "safety_level": tool.safety_level,
-            "category": tool_registry_v2._get_tool_category(tool.name),
+            "category": tool_registry._get_tool_category(tool.name),
             "schema": schema
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("tool_v2_details_error", tool=tool_name, error=str(e))
+        logger.error("tool_details_error", tool=tool_name, error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/v2/execute")
-async def execute_tool_v2(request: ToolExecutionRequest):
-    """Execute a V2 tool (for testing/debugging)"""
+@router.post("/execute", response_model=Dict[str, Any])
+async def execute_tool(request: ToolExecutionRequest):
+    """Execute a tool (for testing/debugging)"""
     try:
-        result = await tool_registry_v2.execute_tool(
+        result = await tool_registry.execute_tool(
             request.tool_name,
             request.parameters,
             skip_safety_check=request.skip_safety_check
@@ -132,16 +119,47 @@ async def execute_tool_v2(request: ToolExecutionRequest):
             "context_updates": result.context_updates
         }
     except Exception as e:
-        logger.error("tool_v2_execution_error", tool=request.tool_name, error=str(e))
+        logger.error("tool_execution_error", tool=request.tool_name, error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/context")
+@router.post("/verify", response_model=VerificationResponse)
+async def verify_tool_result(request: VerificationRequest):
+    """Verify a tool execution result"""
+    try:
+        # Convert dict to ToolResult (simplified)
+        from app.tools.terminal_base import ToolResult
+        result = ToolResult(
+            success=request.result.success,
+            message=request.result.message,
+            output=request.result.output,
+            error=request.result.error,
+            exit_code=request.result.exit_code,
+            data=request.result.data,
+            verification_passed=request.result.verification_passed,
+            context_updates=request.result.context_updates
+        )
+        
+        verified = await tool_registry.verify_tool_result(
+            request.tool_name,
+            result,
+            request.parameters
+        )
+        
+        return VerificationResponse(
+            verified=verified,
+            details="Verification passed" if verified else "Verification failed"
+        )
+    except Exception as e:
+        logger.error("verification_error", tool=request.tool_name, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/context", response_model=Dict[str, Any])
 async def get_context():
     """Get current session context"""
     try:
-        # Use default session for API calls
-        context = context_manager.get_context("default")
+        context = context_manager.get_context()
         return {
             "current_app": context.current_app,
             "active_window": context.active_window,
@@ -156,14 +174,14 @@ async def get_context():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/context/summary")
+@router.get("/context/summary", response_model=Dict[str, Any])
 async def get_context_summary():
     """Get human-readable context summary"""
     try:
-        summary = context_manager.get_context_summary("default")
+        summary = context_manager.get_context_summary()
         return {
             "summary": summary,
-            "has_context": bool(summary)
+            "context": context_manager.get_context()
         }
     except Exception as e:
         logger.error("context_summary_error", error=str(e))
@@ -174,7 +192,7 @@ async def get_context_summary():
 async def update_context(request: ContextUpdateRequest):
     """Update session context"""
     try:
-        context_manager.update_context("default", request.updates)
+        context_manager.update_context(request.updates)
         return {"success": True, "message": "Context updated"}
     except Exception as e:
         logger.error("context_update_error", error=str(e))
@@ -185,31 +203,24 @@ async def update_context(request: ContextUpdateRequest):
 async def reset_context():
     """Reset session context"""
     try:
-        context_manager.reset("default")
+        context_manager.reset()
         return {"success": True, "message": "Context reset"}
     except Exception as e:
         logger.error("context_reset_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/intent/analyze")
+@router.post("/intent/analyze", response_model=Dict[str, Any])
 async def analyze_intent(request: IntentAnalysisRequest):
     """Analyze user intent and recommend tools"""
     try:
         # Get context if available
-        context_dict = {}
-        try:
-            context = context_manager.get_context("default")
-            context_dict = context.__dict__
-        except:
-            pass
-        
-        context = request.context or context_dict
+        context = request.context or context_manager.get_context().__dict__
         
         # Get recommended tools
-        recommended = tool_registry_v2.get_recommended_tools(request.command, context)
+        recommended = tool_registry.get_recommended_tools(request.command, context)
         
-        # Simple intent detection
+        # Simple intent detection (can be enhanced with NLP)
         intent_type = "other"
         if any(word in request.command.lower() for word in ["open", "launch", "start"]):
             intent_type = "open_app"
@@ -235,41 +246,62 @@ async def analyze_intent(request: IntentAnalysisRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status")
+@router.post("/recommend", response_model=ToolRecommendationResponse)
+async def recommend_tools(request: ToolRecommendationRequest):
+    """Get tool recommendations for a given intent"""
+    try:
+        context = request.context or context_manager.get_context().__dict__
+        recommended = tool_registry.get_recommended_tools(request.intent, context)
+        
+        recommendations = [
+            ToolRecommendation(
+                tool_name=tool_name,
+                confidence=0.8,  # Simplified confidence score
+                reasoning=f"Recommended for intent: {request.intent}"
+            )
+            for tool_name in recommended
+        ]
+        
+        return ToolRecommendationResponse(
+            recommendations=recommendations,
+            context_used=bool(context)
+        )
+    except Exception as e:
+        logger.error("recommendation_error", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/status", response_model=SystemStatus)
 async def get_system_status():
     """Get current system status"""
     try:
         current_state = state_machine.get_current_state()
         last_action = None
-        try:
-            context = context_manager.get_context("default")
-            if context.recent_actions:
-                last_action = context.recent_actions[-1].tool
-        except:
-            pass
+        if context_manager.get_context().recent_actions:
+            last_action = context_manager.get_context().recent_actions[-1].tool
         
-        return {
-            "state": current_state.value,
-            "tools_available": len(tool_registry_v2.get_all_tools()),
-            "context_active": True,
-            "continuous_listening": True,
-            "last_action": last_action,
-            "uptime_seconds": time.time() - START_TIME
-        }
+        return SystemStatus(
+            state=current_state.value,
+            tools_available=len(tool_registry.get_all_tools()),
+            context_active=True,
+            continuous_listening=True,
+            last_action=last_action,
+            uptime_seconds=time.time() - START_TIME
+        )
     except Exception as e:
         logger.error("status_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/capabilities")
+@router.get("/capabilities", response_model=SystemCapabilities)
 async def get_capabilities():
     """Get system capabilities"""
     try:
-        info = tool_registry_v2.get_tool_info()
+        info = tool_registry.get_tool_info()
         
-        return {
-            "level": 1,  # Level 1: Desktop Control
-            "features": [
+        return SystemCapabilities(
+            level=1,  # Level 1: Desktop Control
+            features=[
                 "Terminal-first desktop control",
                 "Application management",
                 "File operations",
@@ -278,12 +310,11 @@ async def get_capabilities():
                 "Continuous listening",
                 "Action verification"
             ],
-            "tools_by_category": info["categories"],
-            "continuous_listening": True,
-            "context_awareness": True,
-            "verification_enabled": True
-        }
+            tools_by_category=info["categories"],
+            continuous_listening=True,
+            context_awareness=True,
+            verification_enabled=True
+        )
     except Exception as e:
         logger.error("capabilities_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
-

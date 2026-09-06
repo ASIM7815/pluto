@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, Literal, List, Dict, Any
 
 
-# PLUTO States (matches frontend + new loop states)
+# PLUTO States (matches frontend + Level 1 loop states)
 PlutoState = Literal[
     "idle",
     "listening",
@@ -11,6 +11,7 @@ PlutoState = Literal[
     "thinking",
     "planning",
     "executing",
+    "verifying",      # New: verification after execution
     "observing",
     "reasoning",
     "speaking",
@@ -62,7 +63,7 @@ class SpeakEvent(BaseModel):
     text: str
     # base64-encoded audio bytes, or null => frontend uses browser speechSynthesis
     audio: Optional[str] = None
-    tts: Literal["elevenlabs", "browser"] = "browser"
+    tts: Literal["elevenlabs", "browser", "local_tts"] = "browser"
 
 
 class AgentStateEvent(BaseModel):
@@ -81,7 +82,7 @@ class AgentStateEvent(BaseModel):
     # speak payload
     text: Optional[str] = None
     audio: Optional[str] = None
-    tts: Optional[Literal["elevenlabs", "browser"]] = None
+    tts: Optional[Literal["elevenlabs", "browser", "local_tts"]] = None
 
 
 class CommandResponse(BaseModel):

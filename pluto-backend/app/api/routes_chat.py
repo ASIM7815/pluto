@@ -91,8 +91,25 @@ async def websocket_endpoint(websocket: WebSocket):
             if mtype == "command":
                 command = message.get("command", "").strip()
                 if command:
-                    logger.info("command_ws", command=command, session=session.id)
-                    session_manager.submit_command(session, command)
+                    # Check for silence/stop commands
+                    silence_keywords = ["silence", "stop listening", "be quiet", "shut up", "stop talking", "be silent"]
+                    if any(keyword in command.lower() for keyword in silence_keywords):
+                        logger.info("silence_command", session=session.id)
+                        await session.queue.put(AgentStateEvent(
+                            type="agent_state",
+                            state="idle",
+                            task="Going silent.",
+                            data={"response": "Going silent."}
+                        ))
+                        # Send a special "silence" event to tell frontend to stop listening
+                        await session.queue.put(AgentStateEvent(
+                            type="silence",
+                            state="idle",
+                            task="Silence mode activated"
+                        ))
+                    else:
+                        logger.info("command_ws", command=command, session=session.id)
+                        session_manager.submit_command(session, command)
 
             elif mtype == "confirm":
                 action = message.get("action", "")
