@@ -53,8 +53,11 @@ chmod +x "${DEB_DIR}/opt/pluto/pluto-app.py"
 cp pluto.png "${DEB_DIR}/opt/pluto/pluto.png"
 
 # Include the native desktop runtime venv (pywebview + bottle)
+# Must have system-site-packages enabled for GTK/gi access
 echo "Copying native desktop runtime venv ..."
 cp -r /tmp/pluto_venv "${DEB_DIR}/opt/pluto/venv"
+# Enable system site packages for GTK bindings
+sed -i 's/include-system-site-packages = false/include-system-site-packages = true/' "${DEB_DIR}/opt/pluto/venv/pyvenv.cfg" || true
 
 # Launcher executable
 cp pluto-launcher.sh "${DEB_DIR}/usr/bin/pluto"
