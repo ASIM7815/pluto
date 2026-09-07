@@ -186,7 +186,10 @@ export function PlutoOrb({
           stroke={look.ringB} strokeWidth="0.8" strokeDasharray="2 6"
           className="origin-center"
           style={{
-            animation: look.animation,
+            animationName: look.animation.includes('pluto-') ? look.animation.split(' ')[0] : 'none',
+            animationDuration: look.animation.split(' ')[1] || '2s',
+            animationTimingFunction: look.animation.includes('ease') ? 'ease-in-out' : 'linear',
+            animationIterationCount: 'infinite',
             animationDirection: "reverse",
             opacity: 0.6,
             transformBox: "fill-box",
