@@ -63,13 +63,11 @@ chmod +x "${DEB_DIR}/usr/bin/pluto"
 # Desktop entry
 cp pluto.desktop "${DEB_DIR}/usr/share/applications/pluto.desktop"
 
-# Icons from pluto.png (preserve design; generate required sizes)
+# Icons from pluto.png (properly resized for each size)
 for s in 16 22 24 32 40 48 64 96 128 256; do
     cp "/tmp/icons/${s}x${s}/pluto.png" \
         "${DEB_DIR}/usr/share/icons/hicolor/${s}x${s}/apps/pluto.png"
 done
-# Ensure 256x256 also has the original high-res logo
-cp pluto.png "${DEB_DIR}/usr/share/icons/hicolor/256x256/apps/pluto.png"
 
 # DEBIAN control
 echo "Writing DEBIAN/control ..."
