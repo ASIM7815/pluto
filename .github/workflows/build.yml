@@ -47,6 +47,7 @@ jobs:
             librsvg2-dev libssl-dev pkg-config \
             libxcb1-dev libxcb-render0-dev libxcb-shm0-dev libxcb-randr0-dev \
             libxdo-dev libxkbcommon-dev libwayland-dev libusb-1.0-0-dev \
+            libpipewire-0.3-dev \
             xvfb xdotool imagemagick scrot wmctrl xclip espeak-ng
 
       - name: Install frontend dependencies
