@@ -191,9 +191,9 @@ pub async fn run_tool(name: &str, arguments: &Value) -> ToolResult {
             // system
             "take_screenshot" => system::take_screenshot(&arguments),
             "set_volume" => system::set_volume(&arguments),
-            "get_volume" => system::get_volume(),
+            "get_volume" => system::get_volume(&arguments),
             "copy_to_clipboard" => system::copy_to_clipboard(&arguments),
-            "get_clipboard" => system::get_clipboard(),
+            "get_clipboard" => system::get_clipboard(&arguments),
             "get_processes" => system::get_processes(&arguments),
             "kill_process" => system::kill_process(&arguments),
             // files

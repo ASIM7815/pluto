@@ -7,7 +7,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager};
 
 async fn run_sync(f: fn(&Value) -> tools::ToolResult, args: Value) -> tools::ToolResult {
     tauri::async_runtime::spawn_blocking(move || f(&args))

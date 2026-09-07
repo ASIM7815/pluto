@@ -12,7 +12,7 @@ use crate::tools::{self, ToolResult};
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::oneshot;
 
 const CONFIRMATION_TIMEOUT_MS: u64 = 180_000;

@@ -389,7 +389,7 @@ fn normalize_url(text: &str) -> String {
     format!("https://www.google.com/search?q={}", query)
 }
 
-fn app_alias(text: &str) -> Option<String> {
+pub fn app_alias(text: &str) -> Option<String> {
     let t = norm(text);
     let mut best: Option<(usize, &str)> = None;
     for (alias, executable) in APP_MAPPINGS {

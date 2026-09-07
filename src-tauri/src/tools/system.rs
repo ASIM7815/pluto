@@ -212,7 +212,7 @@ pub fn set_volume(arguments: &Value) -> ToolResult {
     match find_program(executable) {
         Some(program_path) => {
             let all_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-            match run_process(&program_path, &all_args[1..], 10_000, &[]) {
+            match run_process(&program_path, &all_args, 10_000, &[]) {
                 Ok((code, _, err)) if code == 0 => {
                     ToolResult::ok("set_volume", format!("Volume set to {}.", label))
                 }
@@ -226,7 +226,7 @@ pub fn set_volume(arguments: &Value) -> ToolResult {
     }
 }
 
-pub fn get_volume() -> ToolResult {
+pub fn get_volume(_arguments: &Value) -> ToolResult {
     let tool = match volume_tool() {
         Some(t) => t,
         None => return ToolResult::fail("get_volume", "No audio control tool found (install wpctl, pactl or alsa-utils)."),
@@ -282,7 +282,7 @@ pub fn copy_to_clipboard(arguments: &Value) -> ToolResult {
     }
 }
 
-pub fn get_clipboard() -> ToolResult {
+pub fn get_clipboard(_arguments: &Value) -> ToolResult {
     match arboard::Clipboard::new() {
         Ok(mut clipboard) => match clipboard.get_text() {
             Ok(text) => {
