@@ -5,7 +5,6 @@ use crate::state::AppState;
 use crate::tools;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
@@ -165,9 +164,8 @@ pub async fn pluto_get_system_stats() -> Result<SystemStatsPayload, String> {
 pub async fn pluto_get_system_info() -> Result<SystemInfoPayload, String> {
     let mut sys = sysinfo::System::new_all();
     sys.refresh_all();
-    let os = sys
-        .long_os_version()
-        .or_else(|| sys.os_version())
+    let os = sysinfo::System::long_os_version()
+        .or_else(|| sysinfo::System::os_version())
         .unwrap_or_else(|| "Linux".to_string());
     let distro = std::fs::read_to_string("/etc/os-release")
         .ok()
@@ -181,7 +179,7 @@ pub async fn pluto_get_system_info() -> Result<SystemInfoPayload, String> {
     Ok(SystemInfoPayload {
         os,
         distro,
-        host: sys.host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+        host: sysinfo::System::host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
         uptime: format_uptime(sysinfo::System::uptime()),
         security_status: "Sandboxed & Confirmation-gated".to_string(),
         voice_engine: "PLUTO Local TTS (espeak-ng)".to_string(),

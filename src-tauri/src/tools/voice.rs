@@ -147,6 +147,7 @@ pub fn stt_transcribe(audio: &[u8], mime: &str) -> ToolResult {
 
     let txt_path = audio_path.with_extension("txt");
     let _ = std::fs::remove_file(&txt_path);
+    let output_path = txt_path.with_extension("");
     let args = [
         "-m",
         model.to_str().unwrap_or(""),
@@ -154,7 +155,7 @@ pub fn stt_transcribe(audio: &[u8], mime: &str) -> ToolResult {
         audio_path.to_str().unwrap_or(""),
         "-nt",
         "-of",
-        txt_path.with_extension("").to_str().unwrap_or(""),
+        output_path.to_str().unwrap_or(""),
     ];
     match run_process(&program, &args, 60_000, &[]) {
         Ok((code, _, _)) if code == 0 => {

@@ -23,7 +23,13 @@ impl ToolResult {
     }
 
     pub fn fail(tool: &str, message: impl Into<String>) -> Self {
-        ToolResult { success: false, message: message.into(), error: Some(message.into()), data: json!({ "tool": tool, "success": false }) }
+        let message = message.into();
+        ToolResult {
+            success: false,
+            message: message.clone(),
+            error: Some(message),
+            data: json!({ "tool": tool, "success": false }),
+        }
     }
 }
 
@@ -158,7 +164,7 @@ pub fn run_process(
 }
 
 /// Convenience: run an executable with args (no shell).
-pub fn run_tool(
+pub fn run_tool_exe(
     tool: &str,
     args: &[&str],
     timeout_ms: u64,
@@ -186,6 +192,7 @@ pub fn run_tool(
 pub async fn run_tool(name: &str, arguments: &Value) -> ToolResult {
     let name = name.to_string();
     let arguments = arguments.clone();
+    let fail_name = name.clone();
     tauri::async_runtime::spawn_blocking(move || {
         match name.as_str() {
             // system
@@ -226,5 +233,5 @@ pub async fn run_tool(name: &str, arguments: &Value) -> ToolResult {
         }
     })
     .await
-    .unwrap_or_else(|e| ToolResult::fail(&name, format!("Tool task panicked: {}", e)))
+    .unwrap_or_else(|e| ToolResult::fail(&fail_name, format!("Tool task panicked: {}", e)))
 }

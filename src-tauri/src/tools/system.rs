@@ -138,9 +138,8 @@ pub fn take_screenshot(arguments: &Value) -> ToolResult {
     if x11 {
         match capture_x11(&path, &area) {
             Ok(true) => captured = true,
-            Err(e) => {
+            Ok(false) | Err(_) => {
                 // Fall through to native tools below.
-                let _ = e;
             }
         }
     }
@@ -148,6 +147,7 @@ pub fn take_screenshot(arguments: &Value) -> ToolResult {
         if let Some(result) = capture_with_native_tool(&path, &area) {
             match result {
                 Ok(true) => captured = true,
+                Ok(false) => return ToolResult::fail("take_screenshot", "Screenshot tool finished without producing an image."),
                 Err(e) => return ToolResult::fail("take_screenshot", e),
             }
         }
@@ -245,6 +245,7 @@ pub fn get_volume(_arguments: &Value) -> ToolResult {
                     .next()
                     .and_then(|s| s.trim_start_matches('[').trim_end_matches(']').parse::<f64>().ok())
                     .map(|v| (v * 100.0).round() as u64)
+                    .unwrap_or(0)
             } else {
                 stdout
                     .split(|c: char| c == ' ' || c == '\n')
@@ -347,7 +348,7 @@ pub fn kill_process(arguments: &Value) -> ToolResult {
         return ToolResult::fail("kill_process", "No process name was provided.");
     }
     let mut sys = sysinfo::System::new_all();
-    sys.refresh_processes();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let pids: Vec<u64> = sys
         .processes()
         .values()

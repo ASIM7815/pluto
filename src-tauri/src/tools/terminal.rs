@@ -7,7 +7,7 @@
 //!                         with a bounded timeout; shell metacharacters are
 //!                         only interpreted after explicit approval.
 
-use super::{find_program, run_process, ToolResult};
+use super::{find_program, ToolResult};
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -175,8 +175,10 @@ pub fn execute_command(arguments: &Value) -> ToolResult {
     let (code, out, err) = if has_shell_meta {
         // Explicitly approved shell command: bounded, `/bin/sh`.
         match find_program("sh") {
-            Some(sh) => run_process_with_cwd(&sh, &["-c", &command], cwd.as_deref(), 45_000, &[])
-                .map_err(|e| ToolResult::fail("execute_command", e))?,
+            Some(sh) => match run_process_with_cwd(&sh, &["-c", &command], cwd.as_deref(), 45_000, &[]) {
+                Ok(result) => result,
+                Err(e) => return ToolResult::fail("execute_command", e),
+            },
             None => return ToolResult::fail("execute_command", "/bin/sh not found."),
         }
     } else {

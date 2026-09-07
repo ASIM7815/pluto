@@ -238,7 +238,7 @@ fn dir_from_text(text: &str, default: &str) -> String {
     let t = norm(text);
     let mut best: Option<(usize, String)> = None;
     for (alias, path) in DIR_ALIASES {
-        if t.contains(alias) && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
+        if t.contains(alias) && best.as_ref().map(|(len, _)| alias.len() > *len).unwrap_or(true) {
             best = Some((alias.len(), expand_home(path)));
         }
     }
@@ -1116,7 +1116,7 @@ fn messaging_plan(text: &str, t: &str) -> Option<Vec<PlanItem>> {
     if !send_verbs.iter().any(|k| t.contains(k)) && !t.starts_with(&format!("{} ", app)) {
         return None;
     }
-    let mut recipient_part = t.clone();
+    let mut recipient_part = t.to_string();
     let mut content = String::new();
     let re_q = Regex::new(r#"["'](.+?)["']"#).unwrap();
     let quoted = re_q.captures(text).map(|c| c.get(1).unwrap().as_str().trim().to_string());

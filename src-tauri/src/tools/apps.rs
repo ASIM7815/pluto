@@ -10,7 +10,7 @@ const TERMINAL_PROGRAMS: &[&str] = &["vim", "emacs", "htop", "top", "git", "bash
 
 fn is_process_running(name: &str) -> bool {
     let mut sys = sysinfo::System::new_all();
-    sys.refresh_processes();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     sys.processes()
         .values()
         .any(|p| p.name().to_string_lossy().to_lowercase() == name.to_lowercase())
@@ -243,7 +243,7 @@ pub fn switch_to_application(arguments: &Value) -> ToolResult {
 
 pub fn list_running_applications() -> ToolResult {
     let mut sys = sysinfo::System::new_all();
-    sys.refresh_processes();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let mut names: Vec<(String, f64)> = sys
         .processes()
         .values()
