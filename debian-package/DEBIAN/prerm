@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+echo "Stopping PLUTO AI Assistant..."
+
+# Kill any running PLUTO processes
+pkill -f "pluto-backend" 2>/dev/null || true
+pkill -f "next dev" 2>/dev/null || true
+
+echo "PLUTO AI Assistant stopped."
+
+exit 0

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PLUTO AI Assistant
+Comment=Local AI-powered desktop assistant - 100% FREE
+Exec=/opt/pluto/start.sh
+Icon=pluto-ai
+Terminal=false
+Categories=Utility;System;
+Keywords=AI;assistant;voice;automation;
+StartupNotify=true
+StartupWMClass=pluto
