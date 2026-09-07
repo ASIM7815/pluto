@@ -6,15 +6,17 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
 from app.agent.context_manager import context_manager
 from app.agent.session_manager import Session
 from app.agent.state_machine import PlutoState
-from app.agent.pattern_matcher import pattern_matcher
+from app.agent.nlu import NLUStep
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.intelligence.brain import get_brain
 from app.schemas.chat import (
     ActionPreview,
     Activity,
@@ -29,14 +31,27 @@ logger = get_logger(__name__)
 
 
 class PatternOrchestrator:
-    """Pattern-based orchestrator - direct command execution without AI."""
+    """PLUTO's local, pattern-driven autonomous orchestrator (NO external AI).
+
+    Uses the local brain (``app.intelligence.brain.PlutoBrain``) to understand a
+    natural command, extract intent + entities + confidence, plan an ordered
+    multi-step tool sequence, then execute + verify + recover. This is the
+    active command loop (see ``session_manager`` / ``routes_chat``).
+    """
+
+    # Tool error codes that are likely transient and worth one automatic retry.
+    _TRANSIENT_CODES = {
+        "TIMEOUT", "NAV_TIMEOUT", "NAV_FAILED", "EXECUTION_ERROR",
+        "CLICK_TIMEOUT", "BROWSER_START_FAILED",
+    }
 
     def __init__(self) -> None:
         self._registry = get_registry()
+        self._brain = get_brain()
         logger.info(
             "pattern_orchestrator_initialized",
             tools=len(self._registry.get_all_tools()),
-            matcher_commands=len(pattern_matcher.get_capabilities()),
+            brain_local=True,
         )
 
     # ==================================================================
@@ -164,157 +179,252 @@ class PatternOrchestrator:
             context_manager.update_context(session_id, context)
 
         # ------------------------------------------------------------------
-        # PATTERN MATCHING - NO AI
+        # LOCAL BRAIN: understand intent + entities + confidence, then plan
+        # an ordered multi-step tool sequence (NO external AI/API).
         # ------------------------------------------------------------------
         await emit(PlutoState.UNDERSTANDING, "Understanding your request...")
-        
-        matched = pattern_matcher.match_command(command)
-        
-        if not matched:
-            # No pattern matched - provide helpful error
-            await self._fail_task(
-                session,
-                detail=(
-                    f"I couldn't understand that command, BOSS. Try commands like:\n"
-                    f"- 'Take a screenshot'\n"
-                    f"- 'Open YouTube'\n"
-                    f"- 'Volume up'\n"
-                    f"- 'List running apps'"
-                ),
-                push=push
-            )
-            context_manager.end_task(session_id, success=False)
-            return
-        
-        tool_name = matched["command"]
-        arguments = matched["arguments"]
-        confidence = matched["confidence"]
-        
+        await emit(PlutoState.THINKING, "Reasoning about your request...")
+
+        ctx_snapshot = context_manager.get_context_snapshot(session_id) or {}
+        plan = self._brain.plan(command, ctx_snapshot)
+        intent = plan.intent
+        confidence = plan.confidence
+
+        steps = [s for s in plan.steps if isinstance(s, NLUStep)]
+        final_hint = str(next((s for s in reversed(plan.steps) if isinstance(s, str)), ""))
+
         logger.info(
-            "pattern_matched",
-            command=tool_name,
+            "brain_plan",
+            command=command[:120],
+            intent=intent,
             confidence=confidence,
-            method=matched["method"]
+            steps=[s.name for s in steps],
+            entities=plan.entities,
         )
-        
-        # ------------------------------------------------------------------
-        # EXECUTE THE MATCHED COMMAND
-        # ------------------------------------------------------------------
-        await emit(PlutoState.THINKING, f"Preparing to execute... (confidence: {int(confidence*100)}%)")
-        
-        tool = self._registry.get_tool(tool_name)
-        if tool is None:
-            await self._fail_task(
-                session,
-                detail=f"The command '{tool_name}' is not available right now.",
-                push=push
-            )
-            context_manager.end_task(session_id, success=False)
+
+        # No executable steps => conversational / greeting / help / ambiguous.
+        if not steps:
+            context_manager.end_task(session_id, success=True)
+            text = final_hint or self._intent_reply(intent, command)
+            await self._speak_success(session, push, text)
             return
-        
-        # Safety check
-        if self._requires_confirmation(tool_name, arguments, tool):
-            ok = await self._await_confirmation(push, session, tool_name, arguments)
-            if not ok:
+
+        await emit(
+            PlutoState.PLANNING,
+            f"Planning {len(steps)} step(s)...",
+            data={"intent": intent, "confidence": confidence,
+                  "recommended_tools": plan.recommended_tools},
+        )
+
+        # ------------------------------------------------------------------
+        # EXECUTE EACH PLANNED STEP (verify + recover after failure)
+        # ------------------------------------------------------------------
+        completed_steps: List[str] = []
+        last_result = None
+
+        for i, step in enumerate(steps):
+            step_id = f"s{i}"
+            tool_name = step.name
+            arguments = step.arguments
+            label = self._step_label(tool_name, arguments)
+
+            tool = self._registry.get_tool(tool_name)
+            if tool is None:
+                self._brain.record_action(
+                    session_id, tool_name, command=command, intent=intent,
+                    success=False, error="tool not found", confidence=confidence,
+                )
+                await self._fail_task(
+                    session,
+                    detail=f"The action '{tool_name}' is not one I can do.",
+                    push=push,
+                )
                 context_manager.end_task(session_id, success=False)
-                sm.transition(PlutoState.LISTENING, reason="after_cancel", force=True)
-                await push(AgentStateEvent(
-                    type="agent_state", state="listening",
-                    task="Action cancelled. Ready for your next command.", session_id=session_id,
-                ))
                 return
-        
-        # Execute
-        step_id = "s0"
-        label = self._step_label(tool_name, arguments)
-        
-        await emit(PlutoState.EXECUTING, f"Executing: {label}", reason="tool_execute")
-        await push(AgentStateEvent(
-            type="execution_step",
-            step=ExecutionStep(id=step_id, label=label, status="current"),
-            session_id=session_id,
-        ))
-        
-        result = await self._registry.execute_tool(
-            tool_name, arguments, skip_safety_check=True
-        )
-        
-        # Verify
-        verified: Optional[bool] = result.verification_passed
-        if result.success and verified is None:
-            verified = await self._registry.verify_tool_result(
-                tool_name, result, arguments
+
+            # Safety gate (tool-level DANGEROUS is refused by the registry).
+            if self._requires_confirmation(tool_name, arguments, tool):
+                ok = await self._await_confirmation(push, session, tool_name, arguments)
+                if not ok:
+                    context_manager.end_task(session_id, success=False)
+                    sm.transition(PlutoState.LISTENING, reason="after_cancel", force=True)
+                    await push(AgentStateEvent(
+                        type="agent_state", state="listening",
+                        task="Action cancelled. Ready for your next command.",
+                        session_id=session_id,
+                    ))
+                    return
+
+            await emit(PlutoState.EXECUTING, f"Executing: {label}", reason="tool_execute")
+            await push(AgentStateEvent(
+                type="execution_step",
+                step=ExecutionStep(id=step_id, label=label, status="current"),
+                session_id=session_id,
+            ))
+
+            result = await self._registry.execute_tool(
+                tool_name, arguments, skip_safety_check=True
             )
-            result.verification_passed = verified
-            if not verified:
-                result.success = False
-                result.error = result.error or "Verification failed after execution."
-                result.message = f"Executed but could not be verified: {result.message}"
-        
-        # Record outcome
-        context_manager.record_action(
-            session_id,
-            tool=tool_name,
-            parameters=arguments,
-            result=result.message,
-            success=result.success,
-        )
-        if result.context_updates:
-            context_manager.update_context(session_id, result.context_updates)
-        
-        sm.transition(PlutoState.VERIFYING, reason="tool_verify")
-        await push(AgentStateEvent(
-            type="execution_step",
-            step=ExecutionStep(
-                id=step_id, label=label,
-                status="completed" if result.success else "error",
-                detail=result.message,
-            ),
-            session_id=session_id,
-        ))
-        await push(AgentStateEvent(
-            type="activity",
-            activity=self._build_activity(tool_name, arguments, result),
-            session_id=session_id,
-        ))
-        
-        if not result.success:
-            context_manager.end_task(session_id, success=False)
-            await self._fail_task(
-                session, 
-                detail=result.error or result.message or "the action failed",
-                push=push
+
+            # Recovery: one automatic retry for transient failures.
+            if not result.success and self._is_transient(result):
+                await emit(PlutoState.OBSERVING, "Observing the result...")
+                await asyncio.sleep(0.8)
+                logger.info("tool_retry", tool=tool_name, reason=result.error_code)
+                result = await self._registry.execute_tool(
+                    tool_name, arguments, skip_safety_check=True
+                )
+
+            # Verify the executed effect before believing it succeeded.
+            verified: Optional[bool] = result.verification_passed
+            if result.success and verified is None:
+                verified = await self._registry.verify_tool_result(
+                    tool_name, result, arguments
+                )
+                result.verification_passed = verified
+                if not verified:
+                    result.success = False
+                    result.error = result.error or "Verification failed after execution."
+                    result.message = f"Executed but could not be verified: {result.message}"
+
+            # Record the outcome truthfully (context + persistent memory).
+            context_manager.record_action(
+                session_id,
+                tool=tool_name,
+                parameters=arguments,
+                result=result.message,
+                success=result.success,
             )
-            return
-        
+            self._brain.record_action(
+                session_id, tool_name, command=command, intent=intent,
+                parameters=arguments, result=result.message,
+                success=result.success, error=result.error, confidence=confidence,
+            )
+            if result.context_updates:
+                context_manager.update_context(session_id, result.context_updates)
+
+            await emit(PlutoState.VERIFYING, f"Verifying: {label}", reason="tool_verify")
+            await push(AgentStateEvent(
+                type="execution_step",
+                step=ExecutionStep(
+                    id=step_id, label=label,
+                    status="completed" if result.success else "error",
+                    detail=result.message,
+                ),
+                session_id=session_id,
+            ))
+            await push(AgentStateEvent(
+                type="activity",
+                activity=self._build_activity(tool_name, arguments, result, step_id),
+                session_id=session_id,
+            ))
+
+            if not result.success:
+                await emit(PlutoState.OBSERVING, "Observing the result...")
+                await emit(
+                    PlutoState.REASONING,
+                    "That step failed, so I'll stop rather than carry on from a bad result.",
+                )
+                await self._fail_task(
+                    session,
+                    detail=result.error or result.message or "the action failed",
+                    push=push,
+                )
+                context_manager.end_task(session_id, success=False)
+                return
+
+            completed_steps.append(label)
+            last_result = result
+
         # ------------------------------------------------------------------
-        # SUCCESS - Generate natural response
+        # SUCCESS - generate a natural, honest response
         # ------------------------------------------------------------------
         context_manager.end_task(session_id, success=True)
-        
-        final_text = self._generate_response(tool_name, arguments, result)
-        
-        # Speak the response
-        await emit(PlutoState.SPEAKING, "Speaking...", reason="final_answer")
-        audio_b64, engine = await self._synthesize_speech(final_text)
+        final_text = final_hint or self._final_success_text(intent, steps, last_result)
+        await self._speak_success(session, push, final_text, intent=intent, confidence=confidence)
+
+    # ==================================================================
+    # Success / recovery helpers (the brain-driven loop)
+    # ==================================================================
+    async def _speak_success(
+        self,
+        session: Session,
+        push,
+        text: str,
+        intent: Optional[str] = None,
+        confidence: Optional[float] = None,
+    ) -> None:
+        """Speak the final answer, emit SUCCESS, then auto-return to LISTENING."""
+        sm = session.state_machine
+        sm.transition(PlutoState.SPEAKING, reason="final_answer")
         await push(AgentStateEvent(
-            type="speak", text=final_text, audio=audio_b64, tts=engine,
-            session_id=session_id,
+            type="agent_state", state="speaking", task="Speaking...",
+            session_id=session.id,
         ))
-        
-        await emit(
-            PlutoState.SUCCESS,
-            final_text,
-            reason="task_success",
-            data={"response": final_text},
-        )
-        
+        audio_b64, engine = await self._synthesize_speech(text)
+        await push(AgentStateEvent(
+            type="speak", text=text, audio=audio_b64, tts=engine,
+            session_id=session.id,
+        ))
+        data: Dict[str, Any] = {"response": text}
+        if intent:
+            data["intent"] = intent
+        if confidence is not None:
+            data["confidence"] = confidence
+        sm.transition(PlutoState.SUCCESS, reason="task_success")
+        await push(AgentStateEvent(
+            type="agent_state", state="success", task=text, data=data,
+            session_id=session.id,
+        ))
         sm.transition(PlutoState.LISTENING, reason="auto_listen")
         if settings.pluto_auto_listen:
             await push(AgentStateEvent(
                 type="agent_state", state="listening",
-                task="Ready for your next command.", session_id=session_id,
+                task="Ready for your next command.", session_id=session.id,
             ))
+
+    @staticmethod
+    def _is_transient(result) -> bool:
+        """Whether a failed tool result is likely worth one automatic retry."""
+        return bool(result is not None and result.error_code in PatternOrchestrator._TRANSIENT_CODES)
+
+    @staticmethod
+    def _intent_reply(intent: str, command: str) -> str:
+        """A natural reply for conversational intents with no tool action."""
+        replies = {
+            "greeting": (
+                "Hello BOSS! I'm PLUTO, your autonomous desktop assistant. "
+                "Tell me what you need and I'll take care of it."
+            ),
+            "thanks": "You're welcome, BOSS! What would you like me to do next?",
+            "help": (
+                "Here's what I can do, BOSS: open apps and websites, browse and "
+                "search, manage files and folders, take screenshots, control "
+                "volume and clipboard, check processes, and run terminal "
+                "commands with your approval."
+            ),
+            "identity": (
+                "I'm PLUTO, your local autonomous desktop assistant. I run real "
+                "tools on this machine and verify every action before I tell "
+                "you it worked."
+            ),
+        }
+        return replies.get(
+            intent,
+            "I didn't quite get that, BOSS. Try a clear command like "
+            "\"open YouTube\" or \"take a screenshot\".",
+        )
+
+    def _final_success_text(self, intent: str, steps: List[NLUStep], last_result) -> str:
+        """Compose a natural final response from the last executed step."""
+        if steps and last_result is not None:
+            last = steps[-1]
+            try:
+                return self._generate_response(last.name, last.arguments, last_result)
+            except Exception:  # noqa: BLE001
+                logger.error("final_response_error", error=last_result.message)
+                return f"Done, BOSS. {str(last_result.message)[:120]}"
+        return "Done, BOSS."
 
     # ==================================================================
     # Response generation (natural language responses)
@@ -513,9 +623,8 @@ class PatternOrchestrator:
         return generator(arguments)
 
     @staticmethod
-    def _build_activity(tool_name: str, arguments: Dict, result) -> Activity:
-        """Build activity log entry."""
-        # Map tool categories
+    def _build_activity(tool_name: str, arguments: Dict, result, step_id: str = "s0") -> Activity:
+        """Build activity log entry (unique id per step, no duplicate keys)."""
         category_map = {
             "open_application": "app",
             "close_application": "app",
@@ -525,18 +634,22 @@ class PatternOrchestrator:
             "browser_click": "browser",
             "close_browser": "browser",
             "create_file": "file",
+            "create_folder": "file",
             "delete_file": "file",
             "read_file": "file",
+            "list_directory": "file",
             "take_screenshot": "system",
             "set_volume": "system",
             "get_volume": "system",
             "copy_to_clipboard": "system",
             "get_clipboard": "system",
+            "get_processes": "system",
+            "kill_process": "system",
+            "execute_command": "system",
         }
-        
         return Activity(
-            id=f"act_{tool_name}",
-            timestamp="",
+            id=f"act-{int(time.time() * 1000)}-{tool_name}-{step_id}",
+            timestamp="Just now",
             title=tool_name.replace("_", " ").title(),
             description=result.message[:100] if result.message else "Executed",
             status="success" if result.success else "error",

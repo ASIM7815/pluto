@@ -47,7 +47,12 @@ const productivityCardsList = [
 ];
 
 export default function HomePage() {
-  const { state, actionPreview, errorMessage } = usePlutoStore();
+  const state = usePlutoStore((s) => s.state);
+  const actionPreview = usePlutoStore((s) => s.actionPreview);
+  const errorMessage = usePlutoStore((s) => s.errorMessage);
+  const intent = usePlutoStore((s) => s.intent);
+  const confidence = usePlutoStore((s) => s.confidence);
+  const recommendedTools = usePlutoStore((s) => s.recommendedTools);
 
   // Connect to backend WebSocket on mount
   useEffect(() => {
@@ -60,7 +65,13 @@ export default function HomePage() {
       <div className="flex flex-col justify-between items-center h-full max-w-[1050px] mx-auto w-full gap-2">
         {/* Central Workspace Header & Orb */}
         <div className="flex flex-col items-center justify-center w-full relative">
-          <PlutoOrb state={state} size={390} />
+          <PlutoOrb
+            state={state}
+            size={390}
+            intent={intent}
+            confidence={confidence}
+            recommendedTools={recommendedTools}
+          />
 
           {/* PLUTO Title Branding */}
           <div className="text-center mt-1 select-none">

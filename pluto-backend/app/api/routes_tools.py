@@ -247,6 +247,72 @@ async def get_system_status(session_id: Optional[str] = Query(None)) -> SystemSt
     )
 
 
+# ---------------------------------------------------------------------------
+# Local intelligence (Phase 1/3): status, train, corrections
+# ---------------------------------------------------------------------------
+@router.get("/intelligence/status")
+async def intelligence_status() -> dict:
+    """Local-brain model + outcome stats (what the settings UI should show)."""
+    from app.intelligence.brain import get_brain
+
+    brain = get_brain()
+    try:
+        brain.ensure_model()
+    except Exception:  # noqa: BLE001
+        pass
+    accuracy = brain.memory.get_model_meta("intent_model_accuracy")
+    try:
+        return {
+            "engine": "local (TF-IDF + scikit-learn linear classifier)",
+            "model_loaded": brain.classifier.is_trained(),
+            "intent_classes": len(brain.classifier.labels),
+            "confidence_threshold": brain.classifier.confidence_threshold,
+            "outcomes": brain.outcome_stats(),
+            "accuracy": accuracy,
+            "model_path": brain.classifier.model_path,
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"engine": "local", "error": str(e)}
+
+
+@router.post("/intelligence/train")
+async def intelligence_train() -> dict:
+    """Re-train the local intent model from the corpus + stored corrections."""
+    from app.intelligence.brain import get_brain
+
+    brain = get_brain()
+    try:
+        metrics = brain.train_and_evaluate()
+        return {"success": True, "accuracy": metrics.get("accuracy"),
+                "f1_macro": metrics.get("f1_macro"),
+                "train_samples": metrics.get("train_samples"),
+                "test_samples": metrics.get("test_samples"),
+                "outcomes": brain.outcome_stats()}
+    except Exception as e:  # noqa: BLE001
+        logger.error("intelligence_train_error", error=str(e))
+        return {"success": False, "message": str(e)}
+
+
+@router.get("/intelligence/actions")
+async def intelligence_actions(limit: int = 50) -> dict:
+    """Recent recorded actions (persistent memory, for diagnostics)."""
+    from app.intelligence.brain import get_brain
+
+    return {"actions": get_brain().recent_actions(limit)}
+
+
+@router.get("/platform")
+async def get_platform_info() -> dict:
+    """Report the active platform adapter + its supported capabilities.
+
+    This is the seam that lets the SAME core intelligence run on Linux, Windows
+    and (where supported) Android with separate OS adapters.
+    """
+    from app.platform import get_platform_capabilities
+
+    return get_platform_capabilities()
+
+
 @router.get("/capabilities", response_model=SystemCapabilities)
 async def get_capabilities() -> SystemCapabilities:
     info = tool_registry.get_tool_info()

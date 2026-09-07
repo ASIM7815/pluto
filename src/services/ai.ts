@@ -148,7 +148,23 @@ export const aiService = {
           store.setCurrentTask(data.task);
         }
         if (data.error) store.setErrorMessage(data.error);
-        if (data.data?.response) store.setAiResponse(data.data.response);
+        // Surface the on-device brain readout (intent + confidence + planned tools).
+        if (data.data) {
+          const d = data.data as {
+            intent?: string;
+            confidence?: number;
+            recommended_tools?: string[];
+            response?: string;
+          };
+          if (d.intent !== undefined || d.confidence !== undefined) {
+            store.setIntent(
+              d.intent ?? store.intent,
+              typeof d.confidence === "number" ? d.confidence : store.confidence,
+              d.recommended_tools ?? store.recommendedTools
+            );
+          }
+          if (d.response) store.setAiResponse(d.response);
+        }
         break;
       }
 

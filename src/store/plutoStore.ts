@@ -15,6 +15,12 @@ interface PlutoStore {
   transcript: string;
   aiResponse: string | null;
   isSpeaking: boolean;
+  // Local-brain readout surfaced to the UI: what PLUTO understood, how sure it
+  // is, and the tools it plans to run. All come from the on-device classifier.
+  intent: string | null;
+  confidence: number | null;
+  recommendedTools: string[];
+
   // Human-readable microphone/STT problem ("Microphone blocked...") shown in
   // the UI instead of failing silently.
   voiceError: string | null;
@@ -25,6 +31,7 @@ interface PlutoStore {
   voiceEngaged: boolean;
 
   setState: (state: PlutoState) => void;
+  setIntent: (intent: string | null, confidence: number | null, tools: string[]) => void;
   setVoiceEngaged: (engaged: boolean) => void;
   setAutoListen: (value: boolean) => void;
   setCommand: (command: string) => void;
@@ -94,11 +101,16 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   transcript: "",
   aiResponse: null,
   isSpeaking: false,
+  intent: null,
+  confidence: null,
+  recommendedTools: [],
   voiceError: null,
   autoListen: true,
   voiceEngaged: false,
 
   setState: (state) => set({ state }),
+  setIntent: (intent, confidence, tools) =>
+    set({ intent, confidence, recommendedTools: tools }),
   setVoiceEngaged: (voiceEngaged) => set({ voiceEngaged }),
   setAutoListen: (autoListen) => set({ autoListen }),
   setCommand: (currentCommand) => set({ currentCommand }),
@@ -135,6 +147,9 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
       transcript: "",
       aiResponse: null,
       isSpeaking: false,
+      intent: null,
+      confidence: null,
+      recommendedTools: [],
       voiceError: null,
       voiceEngaged: false
     })
