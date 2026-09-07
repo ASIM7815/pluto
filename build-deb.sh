@@ -44,8 +44,12 @@ cp -r out/* "${DEB_DIR}/opt/pluto/out/" || true
 rm -rf "${DEB_DIR}/opt/pluto/out/a_windy_day/scene.bin" || true
 # Keep the rest of a_windy_day in case it's needed (license, gltf)
 
-# Copy backend source for optional backend use
+# Copy backend source for backend functionality
+# EXCLUDE venv - it will be created fresh during installation
 cp -r pluto-backend/* "${DEB_DIR}/opt/pluto/pluto-backend/" 2>/dev/null || true
+rm -rf "${DEB_DIR}/opt/pluto/pluto-backend/venv" 2>/dev/null || true
+rm -rf "${DEB_DIR}/opt/pluto/pluto-backend/__pycache__" 2>/dev/null || true
+rm -rf "${DEB_DIR}/opt/pluto/pluto-backend/app/__pycache__" 2>/dev/null || true
 
 # Copy application wrapper and original logo
 cp pluto-app.py "${DEB_DIR}/opt/pluto/pluto-app.py"
@@ -92,7 +96,7 @@ Description: PLUTO - Real Linux Desktop AI Assistant
 Homepage: https://github.com/ASIM7815/pluto
 EOF
 
-# Post-install script (update caches, optionally install backend venv)
+# Post-install script (update caches, install backend venv)
 echo "Writing DEBIAN/postinst ..."
 cat > "${DEB_DIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/bash
@@ -109,15 +113,29 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications || true
 fi
 
-# If backend source is present but venv missing, create it (optional)
+# ALWAYS set up backend environment for full functionality
 if [ -d "/opt/pluto/pluto-backend" ] && [ ! -d "/opt/pluto/pluto-backend/venv" ]; then
-    echo "Setting up PLUTO backend environment (optional)..."
+    echo "Setting up PLUTO backend environment..."
     cd /opt/pluto/pluto-backend
-    python3 -m venv venv 2>/dev/null || true
+    
+    # Create venv with system-site-packages (for system tools access)
+    python3 -m venv --system-site-packages venv 2>/dev/null || python3 -m venv venv 2>/dev/null || true
+    
     if [ -f "venv/bin/pip" ]; then
+        echo "Installing backend dependencies..."
         venv/bin/pip install --quiet --upgrade pip 2>/dev/null || true
         venv/bin/pip install --quiet -r requirements.txt 2>/dev/null || true
+        
+        # Install Playwright browsers (needed for browser automation)
+        if venv/bin/pip show playwright >/dev/null 2>&1; then
+            echo "Installing Playwright browsers (this may take a moment)..."
+            venv/bin/playwright install chromium --with-deps 2>/dev/null || true
+        fi
+        
+        echo "✅ Backend setup complete!"
     fi
+else
+    echo "Backend already configured."
 fi
 
 echo ""
