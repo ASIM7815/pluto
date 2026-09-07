@@ -1,7 +1,11 @@
 /**
- * Tauri abstraction bridge for PLUTO Linux Desktop AI Assistant
- * Provides clean interfaces for OS actions. Currently returns mock responses in browser dev mode.
+ * PLUTO ↔ Rust (Tauri) bridge.
+ *
+ * Every method maps 1:1 to a Tauri command implemented in src-tauri (Rust).
+ * In a plain browser these return the same browser behavior used before so
+ * the dev preview keeps working.
  */
+import { call, isTauriApp } from "@/services/ipc";
 
 export interface SystemStats {
   cpu: number;
@@ -10,77 +14,96 @@ export interface SystemStats {
   uptime: string;
 }
 
+interface OpResult {
+  success: boolean;
+  message: string;
+  pid?: number;
+  data?: Record<string, unknown>;
+}
+
 export const tauriService = {
   async isTauriAvailable(): Promise<boolean> {
-    if (typeof window !== "undefined" && "__TAURI_IPC__" in window) {
-      return true;
+    return isTauriApp();
+  },
+
+  async openApplication(appName: string): Promise<OpResult> {
+    if (!isTauriApp()) {
+      console.log(`[PLUTO] (browser) launch: ${appName}`);
+      return { success: true, message: `Launched ${appName} (simulated)` };
     }
-    return false;
+    try {
+      const data = await call<{ success: boolean; message: string; pid?: number }>(
+        "pluto_launch_application",
+        { application: appName, arguments: [] as string[] }
+      );
+      return data;
+    } catch (e) {
+      return { success: false, message: e instanceof Error ? e.message : String(e) };
+    }
   },
 
-  async openApplication(appName: string): Promise<{ success: boolean; pid?: number; message: string }> {
-    console.log(`[Tauri Bridge] Launching application: ${appName}`);
-    return {
-      success: true,
-      pid: Math.floor(Math.random() * 9000) + 1000,
-      message: `Successfully launched ${appName}`
-    };
-  },
-
-  async openURL(url: string): Promise<{ success: boolean; message: string }> {
-    console.log(`[Tauri Bridge] Opening URL in default browser: ${url}`);
-    return {
-      success: true,
-      message: `Opened ${url}`
-    };
+  async openURL(url: string): Promise<OpResult> {
+    if (!isTauriApp()) {
+      window.open(url, "_blank", "noopener");
+      return { success: true, message: `Opened ${url}` };
+    }
+    try {
+      return await call<OpResult>("pluto_open_url", { url });
+    } catch (e) {
+      return { success: false, message: e instanceof Error ? e.message : String(e) };
+    }
   },
 
   async getSystemStats(): Promise<SystemStats> {
-    return {
-      cpu: Math.floor(18 + Math.random() * 12),
-      ram: Math.floor(38 + Math.random() * 8),
-      storage: 68,
-      uptime: "4 hours 22 mins"
-    };
+    if (!isTauriApp()) {
+      return {
+        cpu: Math.floor(18 + Math.random() * 12),
+        ram: Math.floor(38 + Math.random() * 8),
+        storage: 68,
+        uptime: "4 hours 22 mins",
+      };
+    }
+    const s = await call<SystemStats>("pluto_get_system_stats");
+    return s;
   },
 
   async createFolder(path: string): Promise<{ success: boolean; path: string }> {
-    console.log(`[Tauri Bridge] Creating directory: ${path}`);
-    return {
-      success: true,
-      path
-    };
+    if (!isTauriApp()) return { success: true, path };
+    return call("pluto_create_folder", { path });
   },
 
   async deleteFile(path: string): Promise<{ success: boolean; deletedCount: number }> {
-    console.log(`[Tauri Bridge] Safe deletion request for: ${path}`);
-    return {
-      success: true,
-      deletedCount: 1
-    };
+    if (!isTauriApp()) return { success: true, deletedCount: 1 };
+    return call("pluto_delete_file", { path });
   },
 
-  async listFiles(_dirPath: string): Promise<string[]> {
-    void _dirPath; // parameter reserved for the real Tauri bridge
-    return [
-      "PLUTO",
-      "desktop-agent.rs",
-      "system_hooks.py",
-      "config.json",
-      "audio_stream.wav"
-    ];
+  async listFiles(dirPath: string): Promise<string[]> {
+    if (!isTauriApp()) {
+      return ["PLUTO", "pluto-core.rs", "config.json"];
+    }
+    const result = await call<{ items: Array<{ name: string; path: string; type: string }> }>(
+      "pluto_list_directory",
+      { path: dirPath }
+    );
+    return result.items.map((i) => `${i.type === "directory" ? "[DIR] " : ""}${i.name}`);
   },
 
   async setVolume(level: number): Promise<{ success: boolean; level: number }> {
-    console.log(`[Tauri Bridge] Audio volume set to ${level}%`);
-    return { success: true, level };
+    if (!isTauriApp()) return { success: true, level };
+    return call("pluto_set_volume", { level });
   },
 
   async sendMessage(recipient: string, text: string): Promise<{ success: boolean; messageId: string }> {
-    console.log(`[Tauri Bridge] Dispatching message to ${recipient}: "${text}"`);
-    return {
-      success: true,
-      messageId: `msg-${Date.now()}`
-    };
-  }
+    if (!isTauriApp()) return { success: true, messageId: `msg-${Date.now()}` };
+    return call("pluto_send_message", { recipient, message: text });
+  },
+
+  async takeScreenshot(
+    area = "full",
+    directory?: string,
+    filename?: string
+  ): Promise<{ success: boolean; path?: string; message: string }> {
+    if (!isTauriApp()) return { success: false, message: "Screenshots are available in the Tauri app" };
+    return call("pluto_take_screenshot", { area, directory: directory ?? null, filename: filename ?? null });
+  },
 };

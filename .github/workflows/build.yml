@@ -1,0 +1,119 @@
+name: Build PLUTO .deb (Tauri + Rust)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "arena/**"
+    paths:
+      - "src-tauri/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: pluto-cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/Cargo.toml') }}
+          restore-keys: |
+            pluto-cargo-${{ runner.os }}-
+
+      - name: Install Linux (Tauri) dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libssl-dev pkg-config \
+            libxcb1-dev libxcb-render0-dev libxcb-shm0-dev libxcb-randr0-dev \
+            libxdo-dev libxkbcommon-dev libwayland-dev libusb-1.0-0-dev \
+            xvfb xdotool imagemagick scrot wmctrl xclip espeak-ng
+
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check frontend
+        run: npx tsc --noEmit
+
+      - name: Build frontend (static export)
+        run: npm run build
+
+      - name: Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build Tauri app and Debian package
+        run: npm run build:deb
+
+      - name: Copy / rename .deb artifact
+        run: |
+          mkdir -p dist
+          DEB=$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -n 1)
+          if [ -z "$DEB" ]; then
+            echo "::error::No .deb produced by Tauri bundler"
+            exit 1
+          fi
+          cp "$DEB" dist/Pluto_1.0.0_amd64.deb
+          ls -lh dist/
+
+      - name: Smoke test GUI under Xvfb
+        run: |
+          set -e
+          APP=./src-tauri/target/release/pluto
+          chmod +x "$APP"
+          xvfb-run -a -s "-screen 0 1280x900x24" bash -c '
+            export WEBKIT_DISABLE_COMPOSITING_MODE=1
+            "$1" > /tmp/pluto-app.log 2>&1 &
+            APP_PID=$!
+            sleep 12
+            if kill -0 "$APP_PID" 2>/dev/null; then
+              echo "PLUTO_APP_ALIVE after 12s"
+              scrot /tmp/pluto_smoke.png && echo "SMOKE_SCREENSHOT_OK"
+              kill "$APP_PID"
+            else
+              echo "PLUTO_APP_EXITED_EARLY"
+              cat /tmp/pluto-app.log || true
+              exit 1
+            fi
+          ' _ "$APP"
+
+      - name: Rust smoke tests (clipboard + screenshot under Xvfb)
+        run: |
+          xvfb-run -a -s "-screen 0 1280x900x24" bash -c 'cargo test --manifest-path src-tauri/Cargo.toml --test smoke -- --ignored --nocapture'
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pluto-deb
+          path: dist/Pluto_1.0.0_amd64.deb
+
+      - name: Publish .deb back to the repo
+        run: |
+          git config user.name "pluto-build"
+          git config user.email "pluto-build@users.noreply.github.com"
+          git add dist/Pluto_1.0.0_amd64.deb src-tauri/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "No build artifacts to commit"
+          else
+            git commit -m "build: Pluto_1.0.0_amd64.deb (Tauri + Rust)"
+            git push origin HEAD:${{ github.ref_name }}
+          fi

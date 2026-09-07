@@ -40,5 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-*.deb
-dist/
+
+# Rust / Tauri
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# Tauri release bundle sources (the .deb itself is shipped in dist/)
+/src-tauri/target/

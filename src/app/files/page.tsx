@@ -10,9 +10,9 @@ import { aiService } from "@/services/ai";
 
 const sampleFiles = [
   { name: "PLUTO", type: "Directory", size: "128 MB", path: "/home/user/Projects/PLUTO" },
-  { name: "desktop-agent.rs", type: "Rust Source", size: "24 KB", path: "/home/user/Projects/PLUTO/src/main.rs" },
-  { name: "system_hooks.py", type: "Python Script", size: "8 KB", path: "/home/user/Projects/PLUTO/scripts/hooks.py" },
-  { name: "voice_whisper_cache", type: "Cache Directory", size: "1.4 GB", path: "/home/user/.cache/pluto_temp" }
+  { name: "pluto-core.rs", type: "Rust Source", size: "24 KB", path: "/home/user/Projects/PLUTO/src-tauri/src/main.rs" },
+  { name: "rights.toml", type: "Tauri Capability", size: "2 KB", path: "/home/user/Projects/PLUTO/src-tauri/capabilities/default.json" },
+  { name: "voice_cache", type: "Cache Directory", size: "1.4 GB", path: "/home/user/.cache/pluto_temp" }
 ];
 
 export default function FilesPage() {

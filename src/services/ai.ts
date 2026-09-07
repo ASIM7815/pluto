@@ -1,45 +1,11 @@
 import { usePlutoStore } from "@/store/plutoStore";
 import { PlutoState, ExecutionStep, ActionPreview, Activity } from "@/types";
 import { speak, cancelSpeech } from "@/services/tts";
+import { call, isTauriApp, onPlutoEvent, type PlutoEventBody } from "@/services/ipc";
+import { localAssistant } from "@/services/localAssistant";
 
-// Use relative URLs so calls are proxied by the Next dev server to the
-// FastAPI backend (works from any host, e.g. the sandbox preview).
-const REST_BASE = "/api/backend";
-
-// One stable session id per browser tab: it is sent to the WebSocket and to
-// the REST fallback so the ContextManager keeps a single continuous session
-// no matter which transport is used. It is generated on the client - PLUTO
-// never hard-codes sessions.
-function makeSessionId(): string {
-  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
-    return `web-${window.crypto.randomUUID()}`;
-  }
-  return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-let SESSION_ID = "";
-
-function getSessionId(): string {
-  if (!SESSION_ID) SESSION_ID = makeSessionId();
-  return SESSION_ID;
-}
-
-function wsUrl(): string {
-  if (typeof window === "undefined") return "ws://127.0.0.1:8765/api/chat/ws";
-  const configured = process.env.NEXT_PUBLIC_BACKEND_WS_URL;
-  if (configured) {
-    return `${configured.replace(/\/$/, "")}/api/chat/ws?session_id=${encodeURIComponent(getSessionId())}`;
-  }
-
-  // Route through the same public Next.js origin. This is essential for
-  // remote/HTTPS previews, where the user's browser cannot reach localhost.
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/api/backend/chat/ws?session_id=${encodeURIComponent(
-    getSessionId()
-  )}`;
-}
-
-/** Shape of the events the backend streams (see app/schemas/chat.py). */
-interface BackendEvent {
+/** Shape of the events the Rust backend streams over Tauri IPC. */
+export interface BackendEvent {
   type: string;
   session_id?: string;
   state?: string;
@@ -51,67 +17,34 @@ interface BackendEvent {
   step?: ExecutionStep;
   preview?: ActionPreview;
   activity?: Activity;
-  data?: { response?: string } | null;
+  data?: Record<string, unknown> | null;
 }
 
 const READY_STATES: PlutoState[] = ["listening", "success", "idle", "error"];
 
 export const aiService = {
-  ws: null as WebSocket | null,
-  reconnectAttempts: 0,
-  maxReconnectAttempts: 5,
+  unlisten: null as (() => void) | null,
+  listenersReady: false,
 
-  connectWebSocket(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
-    if (this.ws?.readyState === WebSocket.CONNECTING) return;
-
-    console.log("🔌 Connecting to PLUTO backend...");
-    try {
-      const ws = new WebSocket(wsUrl());
-      this.ws = ws;
-
-      ws.onopen = () => {
-        console.log("✅ Connected to PLUTO backend");
-        this.reconnectAttempts = 0;
-      };
-
-      ws.onmessage = (event) => {
-        let data: BackendEvent;
-        try {
-          data = JSON.parse(String(event.data)) as BackendEvent;
-        } catch {
-          return;
-        }
-        this.handleBackendEvent(data);
-      };
-
-      ws.onerror = (event) => {
-        console.error("❌ WebSocket error:", event);
-      };
-
-      ws.onclose = () => {
-        console.log("🔌 Disconnected from backend");
-        if (this.ws === ws) this.ws = null;
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-          this.reconnectAttempts++;
-          setTimeout(() => this.connectWebSocket(), 2000);
-        }
-      };
-    } catch (error) {
-      console.error("Failed to connect to backend:", error);
+  /**
+   * Subscribe to Rust backend events. In the Tauri app this replaces the old
+   * WebSocket entirely - no ports, no localhost server.
+   */
+  async connectEvents(): Promise<void> {
+    if (this.listenersReady) return;
+    if (!isTauriApp()) {
+      // Browser/dev preview: the local assistant still drives the UI.
+      this.listenersReady = true;
+      return;
     }
-  },
-
-  waitForOpen(timeoutMs = 3500): Promise<boolean> {
-    return new Promise((resolve) => {
-      const started = Date.now();
-      const poll = () => {
-        if (this.ws?.readyState === WebSocket.OPEN) return resolve(true);
-        if (Date.now() - started > timeoutMs) return resolve(false);
-        setTimeout(poll, 120);
-      };
-      poll();
+    const unlisten = await onPlutoEvent((event: PlutoEventBody) => {
+      this.handleBackendEvent(event as unknown as BackendEvent);
     });
+    if (unlisten) {
+      this.unlisten = unlisten;
+      this.listenersReady = true;
+      console.log("✅ Connected to PLUTO Rust backend (Tauri IPC)");
+    }
   },
 
   handleBackendEvent(data: BackendEvent): void {
@@ -127,7 +60,8 @@ export const aiService = {
         store.setVoiceEngaged(false);
         store.setListening(false);
         store.setState("idle");
-        if (data.data?.response) store.setAiResponse(data.data.response);
+        const silenceResponse = data.data?.response;
+        if (typeof silenceResponse === "string") store.setAiResponse(silenceResponse);
         break;
 
       case "agent_state": {
@@ -196,8 +130,8 @@ export const aiService = {
 
       case "speak":
         store.setAiResponse(data.text ?? null);
-        // Fire-and-forget: plays backend audio (ElevenLabs / local TTS) or
-        // browser TTS, then returns the UI to LISTENING.
+        // Fire-and-forget: plays backend audio (local TTS) or browser TTS,
+        // then returns the UI to LISTENING.
         if (data.text) void speak(data.text, data.audio ?? null, data.tts);
         break;
 
@@ -226,100 +160,48 @@ export const aiService = {
     store.setExecutionSteps([]);
     store.setSpeaking(false);
 
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.connectWebSocket();
-      const opened = await this.waitForOpen(3500);
-      if (!opened) {
-        console.log("⚠️ WebSocket not available, using REST API");
-        await this.executeCommandREST(command);
-        return;
-      }
+    if (!isTauriApp()) {
+      // Browser preview: in-browser assistant (no server).
+      await localAssistant.execute(command, (event) => this.handleBackendEvent(event));
+      return;
     }
 
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log("📤 Sending command:", command);
-      this.ws.send(JSON.stringify({ type: "command", command }));
-    } else {
-      await this.executeCommandREST(command);
-    }
-  },
-
-  async executeCommandREST(command: string): Promise<void> {
-    const store = usePlutoStore.getState();
     try {
-      const response = await fetch(`${REST_BASE}/chat/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, session_id: getSessionId() }),
-      });
-      const result = (await response.json()) as {
-        success: boolean;
-        message?: string;
-        state?: string;
-        data?: { response?: string };
-      };
-
-      if (result.success) {
-        store.setState(result.state === "error" ? "error" : "success");
-        const message = result.data?.response || result.message || command;
-        store.setAiResponse(message);
-        store.addActivity({
-          id: `act-${Date.now()}`,
-          title: "Command Executed",
-          description: result.message || command,
-          timestamp: "Just now",
-          status: "success",
-          category: "automation",
-        });
-        setTimeout(() => {
-          usePlutoStore.getState().setExecuting(false);
-          usePlutoStore.getState().setState("listening");
-        }, 400);
-      } else {
-        store.setState("error");
-        store.setExecuting(false);
-        store.setErrorMessage(result.message || "Command failed");
-        if (result.message) store.setAiResponse(result.message);
-      }
+      await call("pluto_execute_command", { command });
     } catch (error) {
       console.error("❌ Command execution failed:", error);
+      const msg = error instanceof Error ? error.message : String(error);
       store.setState("error");
       store.setExecuting(false);
       store.setErrorMessage(
-        "Cannot connect to PLUTO backend. Make sure it's running on port 8765."
+        msg.includes("busy")
+          ? "PLUTO is still busy with the previous command. Please wait."
+          : `PLUTO backend error: ${msg}`
       );
     }
   },
 
   confirmAction(action: string): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "confirm", action }));
-    }
+    if (isTauriApp()) void call("pluto_confirm", { action });
+    else localAssistant.confirmAction(action);
   },
 
   rejectAction(action: string): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "reject", action }));
-    }
+    if (isTauriApp()) void call("pluto_reject", { action });
+    else localAssistant.rejectAction(action);
   },
 
   cancelAction(): void {
     cancelSpeech();
     const store = usePlutoStore.getState();
     store.resetToIdle();
-
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "interrupt" }));
-    }
+    if (isTauriApp()) void call("pluto_interrupt");
+    else localAssistant.cancelAction();
   },
 
   resetSession(): void {
     const store = usePlutoStore.getState();
     store.resetToIdle();
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(
-        JSON.stringify({ type: "reset", clearHistory: true, session_id: getSessionId() })
-      );
-    }
+    if (isTauriApp()) void call("pluto_reset");
   },
 };
