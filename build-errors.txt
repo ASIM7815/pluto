@@ -1,174 +1,215 @@
 ===== cargo test =====
-[1m[94m170[0m [91m- [0m        .or_else(|| [91msys.os_version()[0m)
-[1m[94m170[0m [92m+ [0m        .or_else(|| [92msysinfo::System::os_version()[0m)
-    [1m[94m|[0m
-
-[1m[91merror[E0599][0m[1m: no method named `host_name` found for struct `sysinfo::System` in the current scope[0m
-   [1m[94m--> [0msrc/commands.rs:184:19
-    [1m[94m|[0m
-[1m[94m184[0m [1m[94m|[0m         host: sys.host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
-    [1m[94m|[0m                   [1m[91m^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
-    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
-[1m[96mhelp[0m: use associated function syntax instead
-    [1m[94m|[0m
-[1m[94m184[0m [91m- [0m        host: [91msys.host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
-[1m[94m184[0m [92m+ [0m        host: [92msysinfo::System::host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
-    [1m[94m|[0m
-
-[1m[91merror[E0382][0m[1m: borrow of moved value: `name`[0m
-   [1m[94m--> [0msrc/tools/mod.rs:229:21
-    [1m[94m|[0m
-[1m[94m187[0m [1m[94m|[0m     let name = name.to_string();
-    [1m[94m|[0m         [1m[94m----[0m [1m[94mmove occurs because `name` has type `std::string::String`, which does not implement the `Copy` trait[0m
-[1m[94m188[0m [1m[94m|[0m     let arguments = arguments.clone();
-[1m[94m189[0m [1m[94m|[0m     tauri::async_runtime::spawn_blocking(move || {
-    [1m[94m|[0m                                          [1m[94m-------[0m [1m[94mvalue moved into closure here[0m
-[1m[94m190[0m [1m[94m|[0m         match name.as_str() {
-    [1m[94m|[0m               [1m[94m----[0m [1m[94mvariable moved due to use in closure[0m
-[1m[94m...[0m
-[1m[94m229[0m [1m[94m|[0m     .unwrap_or_else(|e| ToolResult::fail(&name, format!("Tool task panicked: {}", e)))
-    [1m[94m|[0m                     [1m[91m^^^[0m                   [1m[94m----[0m [1m[94mborrow occurs due to use in closure[0m
-    [1m[94m|[0m                     [1m[91m|[0m
-    [1m[94m|[0m                     [1m[91mvalue borrowed here after move[0m
-    [1m[94m|[0m
-[1m[96mhelp[0m: consider cloning the value before moving it into the closure
-    [1m[94m|[0m
-[1m[94m189[0m [92m~ [0m    tauri::async_runtime::spawn_blocking([92m{[0m
-[1m[94m190[0m [92m+     let value = name.clone();[0m
-[1m[94m191[0m [92m~     [0mmove || {
-[1m[94m192[0m [92m~ [0m        match [92mvalue[0m.as_str() {
-[1m[94m193[0m [1m[94m|[0m             // system
-[1m[94m...[0m
-[1m[94m228[0m [1m[94m|[0m         }
-[1m[94m229[0m [92m~ [0m    }
-[1m[94m230[0m [92m~     }[0m)
-    [1m[94m|[0m
-
-[1m[91merror[E0308][0m[1m: mismatched types[0m
-    [1m[94m--> [0msrc/nlu.rs:1127:30
-     [1m[94m|[0m
-[1m[94m1119[0m [1m[94m|[0m     let mut recipient_part = t.clone();
-     [1m[94m|[0m                              [1m[94m---------[0m [1m[94mexpected due to this value[0m
-[1m[94m...[0m
-[1m[94m1127[0m [1m[94m|[0m             recipient_part = recipient_part[..idx].to_string();
-     [1m[94m|[0m                              [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mexpected `&str`, found `String`[0m
-     [1m[94m|[0m
-[1m[96mhelp[0m: consider borrowing here
-     [1m[94m|[0m
-[1m[94m1127[0m [1m[94m| [0m            recipient_part = [92m&[0mrecipient_part[..idx].to_string();
-     [1m[94m|[0m                              [92m+[0m
-
-[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
-   [1m[94m--> [0msrc/tools/apps.rs:13:9
-    [1m[94m|[0m
-[1m[94m 13[0m [1m[94m|[0m     sys.refresh_processes();
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: method defined here
-   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
-    [1m[94m|[0m
-[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
-    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m 13[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
-    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
-
-[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
-   [1m[94m--> [0msrc/tools/apps.rs:246:9
-    [1m[94m|[0m
-[1m[94m246[0m [1m[94m|[0m     sys.refresh_processes();
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: method defined here
-   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
-    [1m[94m|[0m
-[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
-    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m246[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
-    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
-
-[1m[91merror[E0308][0m[1m: `if` and `else` have incompatible types[0m
-   [1m[94m--> [0msrc/tools/system.rs:249:17
-    [1m[94m|[0m
-[1m[94m242[0m [1m[94m|[0m                 let level = if let Some(idx) = stdout.find("volume:") {
-    [1m[94m|[0m [1m[94m ___________________________-[0m
-[1m[94m243[0m [1m[94m|[0m [1m[94m|[0m                   let rest = &stdout[idx + 7..];
-[1m[94m244[0m [1m[94m|[0m [1m[94m|[0m [1m[94m/[0m                 rest.split_whitespace()
-[1m[94m245[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .next()
-[1m[94m246[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .and_then(|s| s.trim_start_matches('[').trim_end_matches(']').parse::<f64>().ok())
-[1m[94m247[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .map(|v| (v * 100.0).round() as u64)
-    [1m[94m|[0m [1m[94m|[0m [1m[94m|________________________________________________________-[0m [1m[94mexpected because of this[0m
-[1m[94m248[0m [1m[94m|[0m [1m[94m|[0m               } else {
-[1m[94m249[0m [1m[94m|[0m [1m[94m|[0m [1m[91m/[0m                 stdout
-[1m[94m250[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .split(|c: char| c == ' ' || c == '\n')
-[1m[94m251[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
-[1m[94m252[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .unwrap_or(0)
-    [1m[94m|[0m [1m[94m|[0m [1m[91m|_________________________________^[0m [1m[91mexpected `Option<u64>`, found `u64`[0m
-[1m[94m253[0m [1m[94m|[0m [1m[94m|[0m               };
-    [1m[94m|[0m [1m[94m|_______________-[0m [1m[94m`if` and `else` have incompatible types[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: expected enum `[1m[35mstd::option::Option<u64>[0m`
-               found type `[1m[35mu64[0m`
-[1m[96mhelp[0m: try wrapping the expression in `Some`
-    [1m[94m|[0m
-[1m[94m249[0m [92m~ [0m                [92mSome([0mstdout
-[1m[94m250[0m [1m[94m|[0m                     .split(|c: char| c == ' ' || c == '\n')
-[1m[94m251[0m [1m[94m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
-[1m[94m252[0m [92m~ [0m                    .unwrap_or(0)[92m)[0m
-    [1m[94m|[0m
-
-[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
-   [1m[94m--> [0msrc/tools/system.rs:350:9
-    [1m[94m|[0m
-[1m[94m350[0m [1m[94m|[0m     sys.refresh_processes();
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: method defined here
-   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
-    [1m[94m|[0m
-[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
-    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m350[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
-    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
-
-[1m[91merror[E0277][0m[1m: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `FromResidual`)[0m
-   [1m[94m--> [0msrc/tools/terminal.rs:179:69
-    [1m[94m|[0m
-[1m[94m162[0m [1m[94m|[0m pub fn execute_command(arguments: &Value) -> ToolResult {
-    [1m[94m|[0m [1m[94m-------------------------------------------------------[0m [1m[94mthis function should return `Result` or `Option` to accept `?`[0m
-[1m[94m...[0m
-[1m[94m179[0m [1m[94m|[0m                 .map_err(|e| ToolResult::fail("execute_command", e))?,
-    [1m[94m|[0m                                                                     [1m[91m^[0m [1m[91mcannot use the `?` operator in a function that returns `ToolResult`[0m
-
-[1m[91merror[E0382][0m[1m: use of moved value: `best`[0m
-   [1m[94m--> [0msrc/nlu.rs:245:5
-    [1m[94m|[0m
-[1m[94m239[0m [1m[94m|[0m     let mut best: Option<(usize, String)> = None;
-    [1m[94m|[0m         [1m[94m--------[0m [1m[94mmove occurs because `best` has type `std::option::Option<(usize, std::string::String)>`, which does not implement the `Copy` trait[0m
-[1m[94m240[0m [1m[94m|[0m     for (alias, path) in DIR_ALIASES {
-    [1m[94m|[0m     [1m[94m--------------------------------[0m [1m[94minside of this loop[0m
-[1m[94m241[0m [1m[94m|[0m         if t.contains(alias) && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
-    [1m[94m|[0m                                      [1m[94m---------------------------------[0m [1m[94m`best` moved due to this method call, in previous iteration of loop[0m
-[1m[94m242[0m [1m[94m|[0m             best = Some((alias.len(), expand_home(path)));
-    [1m[94m|[0m             [1m[94m----[0m [1m[94mthis reinitialization might get skipped[0m
-[1m[94m...[0m
-[1m[94m245[0m [1m[94m|[0m     best.map(|(_, p)| p).unwrap_or_else(|| expand_home(default))
-    [1m[94m|[0m     [1m[91m^^^^[0m [1m[91mvalue used here after move[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: `std::option::Option::<T>::map` takes ownership of the receiver `self`, which moves `best`
-   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:1158:27
-[1m[96mhelp[0m: you can `clone` the value and consume it, but this might not be your desired behavior
-    [1m[94m|[0m
-[1m[94m241[0m [1m[94m| [0m        if t.contains(alias) && best[92m.clone()[0m.map(|(len, _)| alias.len() > len).unwrap_or(true) {
-    [1m[94m|[0m                                     [92m++++++++[0m
-
+[1m[92m   Compiling[0m annotate-snippets v0.11.5
+[1m[92m   Compiling[0m itertools v0.13.0
+[1m[92m   Compiling[0m cssparser v0.36.0
+[1m[92m   Compiling[0m markup5ever v0.38.0
+[1m[92m   Compiling[0m url v2.5.8
+[1m[92m   Compiling[0m system-deps v7.0.8
+[1m[92m   Compiling[0m cexpr v0.6.0
+[1m[92m   Compiling[0m dlib v0.5.3
+[1m[92m   Compiling[0m servo_arc v0.4.3
+[1m[92m   Compiling[0m wayland-backend v0.3.17
+[1m[92m   Compiling[0m serde_derive_internals v0.29.1
+[1m[92m   Compiling[0m bit-vec v0.8.0
+[1m[92m   Compiling[0m bitflags v1.3.2
+[1m[92m   Compiling[0m hashbrown v0.12.3
+[1m[92m   Compiling[0m schemars v0.8.22
+[1m[92m   Compiling[0m shlex v1.3.0
+[1m[92m   Compiling[0m schemars_derive v0.8.22
+[1m[92m   Compiling[0m bit-set v0.8.0
+[1m[92m   Compiling[0m html5ever v0.38.0
+[1m[92m   Compiling[0m gdk-pixbuf v0.18.5
+[1m[92m   Compiling[0m pango v0.18.3
+[1m[92m   Compiling[0m miniz_oxide v0.9.1
+[1m[92m   Compiling[0m cfb v0.7.3
+[1m[92m   Compiling[0m jsonptr v0.6.3
+[1m[92m   Compiling[0m cairo-rs v0.18.5
+[1m[92m   Compiling[0m time v0.3.55
+[1m[92m   Compiling[0m field-offset v0.3.6
+[1m[92m   Compiling[0m toml_edit v0.19.15
+[1m[92m   Compiling[0m cargo-platform v0.1.9
+[1m[92m   Compiling[0m dyn-clone v1.0.20
+[1m[92m   Compiling[0m foldhash v0.2.0
+[1m[92m   Compiling[0m downcast-rs v1.2.1
+[1m[92m   Compiling[0m scoped-tls v1.0.1
+[1m[92m   Compiling[0m option-ext v0.2.0
+[1m[92m   Compiling[0m dirs-sys v0.5.0
+[1m[92m   Compiling[0m dom_query v0.27.0
+[1m[92m   Compiling[0m plist v1.10.1
+[1m[92m   Compiling[0m proc-macro-crate v1.3.1
+[1m[92m   Compiling[0m cargo_metadata v0.19.2
+[1m[92m   Compiling[0m gdk v0.18.2
+[1m[92m   Compiling[0m serde-untagged v0.1.9
+[1m[92m   Compiling[0m json-patch v3.0.1
+[1m[92m   Compiling[0m infer v0.19.0
+[1m[92m   Compiling[0m flate2 v1.1.10
+[1m[92m   Compiling[0m urlpattern v0.3.0
+[1m[92m   Compiling[0m miniz_oxide v0.8.9
+[1m[92m   Compiling[0m wayland-scanner v0.31.11
+[1m[92m   Compiling[0m fdeflate v0.3.7
+[1m[92m   Compiling[0m serde_with v3.23.0
+[1m[92m   Compiling[0m javascriptcore-rs-sys v1.1.1
+[1m[92m   Compiling[0m soup3-sys v0.5.0
+[1m[92m   Compiling[0m toml_edit v0.25.13+spec-1.1.0
+[1m[92m   Compiling[0m enumflags2_derive v0.7.12
+[1m[92m   Compiling[0m generic-array v0.14.7
+[1m[92m   Compiling[0m gtk v0.18.2
+[1m[92m   Compiling[0m proc-macro-crate v3.5.0
+[1m[92m   Compiling[0m tauri-utils v2.9.3
+[1m[92m   Compiling[0m gtk3-macros v0.18.2
+[1m[92m   Compiling[0m dirs v6.0.0
+[1m[92m   Compiling[0m libspa-sys v0.10.1
+[1m[92m   Compiling[0m atk v0.18.2
+[1m[92m   Compiling[0m event-listener v5.4.2
+[1m[92m   Compiling[0m concurrent-queue v2.5.0
+[1m[92m   Compiling[0m time-macros v0.2.32
+[1m[92m   Compiling[0m webkit2gtk-sys v2.0.2
+[1m[92m   Compiling[0m zvariant_utils v4.2.0
+[1m[92m   Compiling[0m toml_datetime v0.7.5+spec-1.1.0
+[1m[92m   Compiling[0m x11 v2.21.0
+[1m[92m   Compiling[0m wayland-client v0.31.15
+[1m[92m   Compiling[0m drm-sys v0.8.1
+[1m[92m   Compiling[0m typenum v1.20.1
+[1m[92m   Compiling[0m winnow v0.7.15
+[1m[92m   Compiling[0m khronos_api v3.1.0
+[1m[92m   Compiling[0m zvariant_derive v5.15.0
+[1m[92m   Compiling[0m toml v0.9.12+spec-1.1.0
+[1m[92m   Compiling[0m event-listener-strategy v0.5.4
+[1m[92m   Compiling[0m futures-lite v2.6.1
+[1m[92m   Compiling[0m embed-resource v3.0.11
+[1m[92m   Compiling[0m gdkx11-sys v0.18.2
+[1m[92m   Compiling[0m bytemuck_derive v1.12.0
+[1m[92m   Compiling[0m errno v0.3.14
+[1m[92m   Compiling[0m linux-raw-sys v0.9.4
+[1m[92m   Compiling[0m drm-fourcc v2.2.0
+[1m[92m   Compiling[0m endi v1.1.1
+[1m[92m   Compiling[0m signal-hook-registry v1.4.8
+[1m[92m   Compiling[0m bytemuck v1.25.2
+[1m[92m   Compiling[0m tauri-winres v0.3.6
+[1m[92m   Compiling[0m cargo_toml v0.22.3
+[1m[92m   Compiling[0m dpi v0.1.2
+[1m[92m   Compiling[0m cookie v0.18.2
+[1m[92m   Compiling[0m async-io v2.6.0
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m nom v8.0.0
+[1m[92m   Compiling[0m libdbus-sys v0.2.7
+[1m[92m   Compiling[0m x11-dl v2.21.0
+[1m[92m   Compiling[0m rustix v0.38.44
+[1m[92m   Compiling[0m xml-rs v0.8.29
+[1m[92m   Compiling[0m gl_generator v0.14.0
+[1m[92m   Compiling[0m wayland-protocols v0.32.13
+[1m[92m   Compiling[0m tauri-build v2.6.3
+[1m[92m   Compiling[0m drm-ffi v0.9.1
+[1m[92m   Compiling[0m soup3 v0.5.0
+[1m[92m   Compiling[0m javascriptcore-rs v1.1.2
+[1m[92m   Compiling[0m block-buffer v0.10.4
+[1m[92m   Compiling[0m crypto-common v0.1.7
+[1m[92m   Compiling[0m enumflags2 v0.7.12
+[1m[92m   Compiling[0m polling v3.11.0
+[1m[92m   Compiling[0m zcheapstr v1.1.0
+[1m[92m   Compiling[0m linux-raw-sys v0.4.15
+[1m[92m   Compiling[0m async-task v4.7.1
+[1m[92m   Compiling[0m raw-window-handle v0.6.2
+[1m[92m   Compiling[0m foldhash v0.1.5
+[1m[92m   Compiling[0m gbm-sys v0.4.0
+[1m[92m   Compiling[0m hashbrown v0.15.5
+[1m[92m   Compiling[0m zvariant v5.15.0
+[1m[92m   Compiling[0m digest v0.10.7
+[1m[92m   Compiling[0m webkit2gtk v2.0.2
+[1m[92m   Compiling[0m wayland-protocols-wlr v0.3.12
+[1m[92m   Compiling[0m gl v0.14.0
+[1m[92m   Compiling[0m async-channel v2.5.0
+[1m[92m   Compiling[0m png v0.17.16
+[1m[92m   Compiling[0m pipewire-sys v0.10.1
+[1m[92m   Compiling[0m libspa v0.10.1
+[1m[92m   Compiling[0m crossbeam-channel v0.5.17
+[1m[92m   Compiling[0m tracing-core v0.1.36
+[1m[92m   Compiling[0m dlopen2_derive v0.4.3
+[1m[92m   Compiling[0m tracing-attributes v0.1.31
+[1m[92m   Compiling[0m khronos-egl v6.0.0
+[1m[92m   Compiling[0m tauri-runtime v2.11.3
+[1m[92m   Compiling[0m fixedbitset v0.5.7
+[1m[92m   Compiling[0m atomic-waker v1.1.2
+[1m[92m   Compiling[0m pxfm v0.1.30
+[1m[92m   Compiling[0m cpufeatures v0.2.17
+[1m[92m   Compiling[0m wry v0.55.1
+[1m[92m   Compiling[0m sha2 v0.10.9
+[1m[92m   Compiling[0m tracing v0.1.44
+[1m[92m   Compiling[0m petgraph v0.8.3
+[1m[92m   Compiling[0m piper v0.2.5
+[1m[92m   Compiling[0m dlopen2 v0.8.2
+[1m[92m   Compiling[0m moxcms v0.8.1
+[1m[92m   Compiling[0m ico v0.5.0
+[1m[92m   Compiling[0m dbus v0.9.12
+[1m[92m   Compiling[0m zbus_names v4.3.4
+[1m[92m   Compiling[0m async-signal v0.2.14
+[1m[92m   Compiling[0m drm v0.14.1
+[1m[92m   Compiling[0m tauri v2.11.5
+[1m[92m   Compiling[0m gdkx11 v0.18.2
+[1m[92m   Compiling[0m async-lock v3.4.2
+[1m[92m   Compiling[0m wayland-server v0.31.14
+[1m[92m   Compiling[0m png v0.18.1
+[1m[92m   Compiling[0m xcb v1.7.1
+[1m[92m   Compiling[0m gdkwayland-sys v0.18.2
+[1m[92m   Compiling[0m serde_repr v0.1.21
+[1m[92m   Compiling[0m unicode-segmentation v1.13.3
+[1m[92m   Compiling[0m cpufeatures v0.3.1
+[1m[92m   Compiling[0m getrandom v0.3.4
+[1m[92m   Compiling[0m base64 v0.22.1
+[1m[92m   Compiling[0m byteorder-lite v0.1.0
+[1m[92m   Compiling[0m tauri-runtime-wry v2.11.4
+[1m[92m   Compiling[0m utf8parse v0.2.2
+[1m[92m   Compiling[0m cookie-factory v0.3.3
+[1m[92m   Compiling[0m anstyle-parse v1.0.0
+[1m[92m   Compiling[0m image v0.25.10
+[1m[92m   Compiling[0m tauri-codegen v2.6.3
+[1m[92m   Compiling[0m keyboard-types v0.7.0
+[1m[92m   Compiling[0m chacha20 v0.10.2
+[1m[92m   Compiling[0m tao v0.35.3
+[1m[92m   Compiling[0m gbm v0.18.0
+[1m[92m   Compiling[0m async-process v2.5.0
+[1m[92m   Compiling[0m zbus_macros v5.19.0
+[1m[92m   Compiling[0m tree_magic_mini v3.2.2
+[1m[92m   Compiling[0m blocking v1.7.0
+[1m[92m   Compiling[0m async-executor v1.14.0
+[1m[92m   Compiling[0m drm v0.15.0
+[1m[92m   Compiling[0m async-broadcast v0.7.2
+[1m[92m   Compiling[0m gethostname v1.1.0
+[1m[92m   Compiling[0m ordered-stream v0.2.0
+[1m[92m   Compiling[0m async-recursion v1.1.1
+[1m[92m   Compiling[0m serialize-to-javascript-impl v0.1.2
+[1m[92m   Compiling[0m async-trait v0.1.92
+[1m[92m   Compiling[0m tokio-macros v2.7.2
+[1m[92m   Compiling[0m os_pipe v1.2.3
+[1m[92m   Compiling[0m memmap2 v0.9.11
+[1m[92m   Compiling[0m mio v1.2.3
+[1m[92m   Compiling[0m colorchoice v1.0.5
+[1m[92m   Compiling[0m x11rb-protocol v0.13.2
+[1m[92m   Compiling[0m hex v0.4.3
+[1m[92m   Compiling[0m is_terminal_polyfill v1.70.2
+[1m[92m   Compiling[0m anstyle-query v1.1.5
+[1m[92m   Compiling[0m jiff-core v0.1.0
+[1m[92m   Compiling[0m xcap v0.9.8
+[1m[92m   Compiling[0m zbus v5.19.0
+[1m[92m   Compiling[0m anstream v1.0.0
+[1m[92m   Compiling[0m tokio v1.53.1
+[1m[92m   Compiling[0m jiff v0.2.35
+[1m[92m   Compiling[0m x11rb v0.13.2
+[1m[92m   Compiling[0m libwayshot-xcap v0.3.3
+[1m[92m   Compiling[0m wl-clipboard-rs v0.9.3
+[1m[92m   Compiling[0m serialize-to-javascript v0.1.2
+[1m[92m   Compiling[0m pipewire v0.10.1
+[1m[92m   Compiling[0m muda v0.19.3
+[1m[92m   Compiling[0m rand v0.10.2
+[1m[92m   Compiling[0m tauri-macros v2.6.3
+[1m[92m   Compiling[0m pluto v1.0.0 (/home/runner/work/pluto/pluto/src-tauri)
+[1m[92m   Compiling[0m env_filter v2.0.0
+[1m[92m   Compiling[0m env_home v0.1.0
+[1m[92m   Compiling[0m mime v0.3.17
+[1m[92m   Compiling[0m which v7.0.3
+[1m[92m   Compiling[0m env_logger v0.11.11
+[1m[92m   Compiling[0m arboard v3.6.1
+[1m[92m   Compiling[0m sysinfo v0.35.2
 [1m[33mwarning[0m[1m: unused variable: `text`[0m
    [1m[94m--> [0msrc/nlu.rs:618:18
     [1m[94m|[0m
@@ -195,42 +236,6 @@
 [1m[94m51[0m [1m[94m|[0m                 Ok((code, _, err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
    [1m[94m|[0m                              [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_err`[0m
 
-[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
-   [1m[94m--> [0msrc/tools/system.rs:139:15
-    [1m[94m|[0m
-[1m[94m139[0m [1m[94m|[0m         match capture_x11(&path, &area) {
-    [1m[94m|[0m               [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
-   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
-   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: not covered
-    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
-[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
-    [1m[94m|[0m
-[1m[94m144[0m [92m~ [0m            }[92m,[0m
-[1m[94m145[0m [92m+             Ok(false) => todo!()[0m
-    [1m[94m|[0m
-
-[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
-   [1m[94m--> [0msrc/tools/system.rs:149:19
-    [1m[94m|[0m
-[1m[94m149[0m [1m[94m|[0m             match result {
-    [1m[94m|[0m                   [1m[91m^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
-   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
-   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: not covered
-    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
-[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
-    [1m[94m|[0m
-[1m[94m151[0m [92m~ [0m                Err(e) => return ToolResult::fail("take_screenshot", e)[92m,[0m
-[1m[94m152[0m [92m~                 Ok(false) => todo!()[0m,
-    [1m[94m|[0m
-
 [1m[33mwarning[0m[1m: unused variable: `err`[0m
    [1m[94m--> [0msrc/tools/system.rs:216:30
     [1m[94m|[0m
@@ -248,327 +253,363 @@
     [1m[94m|[0m
     [1m[94m= [0m[1mnote[0m: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
 
-[1m[91merror[E0716][0m[1m: temporary value dropped while borrowed[0m
-   [1m[94m--> [0msrc/tools/voice.rs:157:9
-    [1m[94m|[0m
-[1m[94m157[0m [1m[94m|[0m         txt_path.with_extension("").to_str().unwrap_or(""),
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mcreates a temporary value which is freed while still in use[0m
-[1m[94m158[0m [1m[94m|[0m     ];
-    [1m[94m|[0m      [1m[94m-[0m [1m[94mtemporary value is freed at the end of this statement[0m
-[1m[94m159[0m [1m[94m|[0m     match run_process(&program, &args, 60_000, &[]) {
-    [1m[94m|[0m                                 [1m[94m-----[0m [1m[94mborrow later used here[0m
-    [1m[94m|[0m
-[1m[96mhelp[0m: consider using a `let` binding to create a longer lived value
-    [1m[94m|[0m
-[1m[94m150[0m [92m~ [0m    [92mlet binding = txt_path.with_extension("");[0m
-[1m[94m151[0m [92m~     [0mlet args = [
-[1m[94m152[0m [1m[94m|[0m         "-m",
-[1m[94m...[0m
-[1m[94m157[0m [1m[94m|[0m         "-of",
-[1m[94m158[0m [92m~ [0m        [92mbinding[0m.to_str().unwrap_or(""),
-    [1m[94m|[0m
-
-[1m[91merror[E0382][0m[1m: use of moved value: `message`[0m
-  [1m[94m--> [0msrc/tools/mod.rs:26:75
-   [1m[94m|[0m
-[1m[94m25[0m [1m[94m|[0m [1m[94m...[0mol: &str, message: impl Into<String>) -> Self {
-   [1m[94m|[0m              [1m[94m-------[0m [1m[94mmove occurs because `message` has type `impl Into<String>`, which does not implement the `Copy` trait[0m
-[1m[94m26[0m [1m[94m|[0m [1m[94m...[0m { success: false, message: message.into(), error: Some(message.into()), data: json!({ "tool": tool, "success": false }) }
-   [1m[94m|[0m                                        [1m[94m------[0m              [1m[91m^^^^^^^[0m [1m[91mvalue used here after move[0m
-   [1m[94m|[0m                                        [1m[94m|[0m
-   [1m[94m|[0m                                        [1m[94m`message` moved due to this method call[0m
-   [1m[94m|[0m
-[1m[92mnote[0m: `into` takes ownership of the receiver `self`, which moves `message`
-  [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/convert/mod.rs:456:12
-[1m[96mhelp[0m: consider restricting opaque type `impl Into<String>` with trait `Copy`
-   [1m[94m|[0m
-[1m[94m25[0m [1m[94m| [0m    pub fn fail(tool: &str, message: impl Into<String>[92m + std::marker::Copy[0m) -> Self {
-   [1m[94m|[0m                                                        [92m+++++++++++++++++++[0m
-
 [1m[33mwarning[0m[1m: value assigned to `status` is never read[0m
-   [1m[94m--> [0msrc/tools/mod.rs:131:22
+   [1m[94m--> [0msrc/tools/mod.rs:137:22
     [1m[94m|[0m
-[1m[94m131[0m [1m[94m|[0m     let mut status = None;
+[1m[94m137[0m [1m[94m|[0m     let mut status = None;
     [1m[94m|[0m                      [1m[33m^^^^[0m [1m[33mthis value is reassigned later and never used[0m
 [1m[94m...[0m
-[1m[94m135[0m [1m[94m|[0m                 status = Some(s);
+[1m[94m141[0m [1m[94m|[0m                 status = Some(s);
     [1m[94m|[0m                 [1m[94m----------------[0m [1m[94m`status` is overwritten here before the previous value is read[0m
 
-[1mSome errors have detailed explanations: E0004, E0061, E0277, E0308, E0382, E0428, E0599, E0716.[0m
-[1mFor more information about an error, try `rustc --explain E0004`.[0m
-[1m[33mwarning[0m: `pluto` (lib test) generated 9 warnings
-[1m[91merror[0m: could not compile `pluto` (lib test) due to 18 previous errors; 9 warnings emitted
+[1m[33mwarning[0m[1m: function `has_any_relaxed` is never used[0m
+   [1m[94m--> [0msrc/nlu.rs:225:4
+    [1m[94m|[0m
+[1m[94m225[0m [1m[94m|[0m fn has_any_relaxed(text: &str, subs: &[&str]) -> bool {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: function `site_from_url` is never used[0m
+   [1m[94m--> [0msrc/nlu.rs:343:4
+    [1m[94m|[0m
+[1m[94m343[0m [1m[94m|[0m fn site_from_url(url: &str) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `normalize_url` is never used[0m
+   [1m[94m--> [0msrc/nlu.rs:368:4
+    [1m[94m|[0m
+[1m[94m368[0m [1m[94m|[0m fn normalize_url(text: &str) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: constant `MAX_FIND_RESULTS` is never used[0m
+  [1m[94m--> [0msrc/tools/files.rs:11:7
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m const MAX_FIND_RESULTS: usize = 25;
+   [1m[94m|[0m       [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: linking with `cc` failed: exit status: 1[0m
+  [1m[94m|[0m
+  [1m[94m= [0m[1mnote[0m:  "cc" "-m64" "/home/runner/work/pluto/pluto/src-tauri/target/debug/deps/rustcLsTFtZ/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/home/runner/work/pluto/pluto/src-tauri/target/debug/deps/{libwhich-22092bf3a30ca37d,libenv_home-c134bdf935cf3244,libeither-a1fbcfea88dde2b2,libarboard-ce07995214c0defa,libwl_clipboard_rs-b876bc73ccf2ff7e,libtree_magic_mini-ebdfd451d85653fd,libpetgraph-1535dc041b625ad9,libhashbrown-8b81ba649601a2e4,libfoldhash-b5d13c0e92a91d0a,libfixedbitset-9f91d11493a226dd,libos_pipe-35be1cf022cd8e50,libx11rb-a666886a53b88c7e,libgethostname-8c4498057c33de7c,libx11rb_protocol-b1c03faacfb6751d,libxcap-1d314fda18aa1972,librand-df49894e8cef015d,libchacha20-9f3d1ee4a4e5e7be,libcpufeatures-26ba7571a322b621,liblibwayshot_xcap-f066b4ebfa5626e5,libgl-e767882ce182f33e,libkhronos_egl-7352fb2429e60943,libmemmap2-214aa08b8b3dca32,libgbm-a9808b664de3ea1c,libdrm-d41de1fe68bc5bb7,librustix-c53a4b038de774f9,liblinux_raw_sys-1cea2f5c2d08107a,libwayland_server-1eb173b2647be696,libgbm_sys-06aa7e07f16e0279,libdrm-d0c622d3008a8b3c,libdrm_ffi-a1277b858f8390ed,libdrm_sys-7b5df39c9d3896da,liblinux_raw_sys-dc1f80ca9a71d11d,libdrm_fourcc-5894833b92bddc20,libwayland_protocols_wlr-f4711769f0ccfb5b,libwayland_protocols-064a1739678fac86,libwayland_client-cc699cc12f975089,libwayland_backend-8fca4a8b761e959c,libdowncast_rs-067a87da00d0e4fe,libscoped_tls-cb7947e893911d95,libwayland_sys-bc40c061b0460bcb,libdlib-dee02aaea056cd92,liblibloading-6bccd30c03c9cb49,libpipewire-d7f1f30aa3ca84aa,libpipewire_sys-73f8e58d3785de75,liblibspa-3374385e43375bda,liblibspa_sys-28883100c4618b38,libcookie_factory-d88985491704389b,libnom-5d4cd992176c604c,libzbus-a04a9087346c8fe3,libblocking-6b5d2e05076ad871,libpiper-d48a3b06544bf125,libatomic_waker-ceab3fbea5b1afba,libhex-cc798f5084951f61,libasync_executor-8a9d16dcd1f5604a,libasync_process-ae7dd56d669f09e3,libasync_signal-8e649d60c1799cf4,libasync_lock-1dfaa9655c9aae28,libasync_task-3ec3ad0b392ce3e2,libasync_channel-3f0b7de3fd40b239,libordered_stream-f16f31c80f2a4ef9,libtracing-e217636c6c74624d,libtracing_core-1bc0eb80e1aff64f,libasync_broadcast-c14977737c82a761,libevent_listener_strategy-411ef6f9b275323b,libevent_listener-7815e517a0ba18a7,libasync_io-1fb3d78556f1fa1e,libpolling-e485d1221ea0f0c1,libconcurrent_queue-76872352665911c9,librustix-174b558c216f5922,liblinux_raw_sys-5b4b507d1ab073f3,libfutures_lite-4d5ceaa7e47bf0f4,libparking-50ff5b1922700d6d,libfastrand-b1d99d6a4c55a922,libzbus_names-d440b8f79926fb75,libzvariant-63788c37aae2d664,libenumflags2-fd7fa5b54b80e328,libendi-5ae2ea15d3427eab,libzcheapstr-5469f78abde1c3b5,libzvariant_utils-b06747c37d3e552f,libsyn-7a1339d2057d1d2d,libquote-f50422760b79cae5,libproc_macro2-ddaabc0904d53cf1,libunicode_ident-74b970160ccc7e6a}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libproc_macro-*,librustc_literal_escaper-*}.rlib" "/home/runner/work/pluto/pluto/src-tauri/target/debug/deps/{libxcb-18b79bd03322fb4d,libimage-3122e47d2e3e2f22,libbytemuck-5ce9892752705e53,libbyteorder_lite-95a52d1597daf675,libmoxcms-388861e0bbb4f07b,libpxfm-f62cc0e5b194c90a,libpng-19a1f4cdbaad1320,libflate2-6b4aaacb4ca993c1,libminiz_oxide-e91f41c67729fedf,libfdeflate-64dd6fafb879271d,libsimd_adler32-362cb5b9ad33252c,libcrc32fast-9f3e8b1e02b2b366,libnum_traits-58d60fbad78558d0}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/home/runner/work/pluto/pluto/src-tauri/target/debug/deps/{libbase64-61acbe23ca84db72,libsysinfo-965db4e682bfefbd,libtauri-1f58a3015ed576f7,libmime-49e3b2105d4ce4c2,libgetrandom-3622e4822537acad,libtauri_runtime_wry-2cd103ec5149ef14,libwry-3be2bd517f538de1,libdirs-a5a73da4a5a15348,libdirs_sys-2bec0b226c663c90,liboption_ext-78e833dc14cbc61a,libgdkx11-480b0667ab6bc290,libtao-720df7fd054aafe4,libgdk_x11_sys-4a48610bfb3d190c,libx11-5fd07991018dc5cb,libgdk_wayland_sys-36305747f1a86ec0,libparking_lot-a6bb7392bde51fbf,libparking_lot_core-d993497369dc059c,liblock_api-0a30a3fed8b7c52d,libscopeguard-a0d84822fc3f1163,libdlopen2-51bc4016f5646ed5,libdbus-a74904916bd1aca5,liblibdbus_sys-334ca196ea9879e9,libx11_dl-d443f156281d6f45,libmuda-e2cb8fc0fa5d1eff,libkeyboard_types-070af7492a91abe0,libunicode_segmentation-7e484a7ccc925c85,libcrossbeam_channel-87a3338ecd743026,libcrossbeam_utils-5d671e5e2bee605f,libtokio-32b46f353c5bbe00,libsignal_hook_registry-e6597a800d115898,liberrno-a2092d20a8ab5329,libmio-52e4346b43248509,libtauri_runtime-adb59e4d5965b33c,libwebkit2gtk-a276757c2520bcb5,libjavascriptcore-0a3ed3f519122642,libsoup-495397c1084cfdc3,libgtk-6f7467ac827ddc1e,libfield_offset-c02c0364eb4a1657,libmemoffset-005ff0d04a690704,libatk-3b45e1c7be465d86,libgdk-ff8a4387f95904ba,libpango-7e9756ee7f5b5bfb,libgdk_pixbuf-0d9e7477497f2e36,libcairo-a53ee8f07c42839d,libgio-b88fb340082d6947,libfutures_io-377533f4ed8b9027,libglib-5e755f01e9846ed9,libfutures_executor-b47dc792c7889eff,libfutures_util-39a129a331467921,libslab-36edee2323b5a692,libpin_project_lite-e9b26d79a08f0191,libfutures_task-9dc53e607663f6e3,libfutures_channel-028285d5a52c8098,libfutures_core-b2e86d4a91990c16,libonce_cell-9b38858089cc1fb0,libbitflags-a66b3027870a53cc,libwebkit2gtk_sys-b7ee80aa37e394e8,libsoup3_sys-ca98a996cedf3ce8,libjavascriptcore_rs_sys-c11420acf26db3ba,libgtk_sys-d7384e426aee6800,libatk_sys-fa282bbc561b4bf9,libgdk_sys-7d71e01db416121a,libpango_sys-31d86a96951f6c91,libgdk_pixbuf_sys-857184751cac7581,libgio_sys-4e59a2d61f4fadba,libcairo_sys-028fc563ec5d1b10,libgobject_sys-a25d5121d6338254,libglib_sys-ea466708cb19be3f,libcookie-2d49efc7a000c35e,libdpi-f3b40648115a0cd1,libserialize_to_javascript-8abc79d8295a01a7,libraw_window_handle-2fbc8c535bf8ee17,libtauri_utils-e791c773954d032b,libdunce-0c3c119a46f160b8,libinfer-b40207f92be94359,libcfb-73a98a4678b46a53,libfnv-182664443c458778,libbyteorder-8324760424e2999f,libuuid-660c482ddf40fe62,libgetrandom-3983caa125755039,liblibc-9cd8a66bfd45f04e,librand_core-fdf6ee58f4954f56,libcfg_if-e202c1210b381f60,libbrotli-c970a1d50d5d1e49,libbrotli_decompressor-dece1047d64b58e5,liballoc_stdlib-03797a9605139039,liballoc_no_stdlib-95e66ded98a3850b,liburlpattern-cbe0fbc3c8904977,libunic_ucd_ident-483a5e5905451185,libunic_ucd_version-256516e6840f2f06,libunic_common-7c3212e0b3d04f94,libunic_char_property-b328500002a0158d,libunic_char_range-dcc50409c3cf0aec,libregex-cae905c2466a8fc5,libregex_automata-81c393c50c185f6b,libaho_corasick-d85bd25766943996,libregex_syntax-7b26b559e119d58d,libglob-66f0073ffc0ffa77,liblog-3f60168723124568,libwalkdir-5e2590fe6e1c8d27,libsame_file-6891d9007e8e3cca,libctor-ec66fa4402e1f707,libplist-9bd7230cb1870e5e,libtime-e37cdecb70151dae,libpowerfmt-5c3fc92d74947f35,libnum_conv-8d5cdd4fe748e378,libderanged-259777f1fac1332f,libtime_core-ac9237c43f668693,libquick_xml-ce640edbe9a4d32b,libbase64-da1cb3bb3b20d1e4,libindexmap-2a5c0c3e407eb360,libequivalent-bc5578463be669e6,libhashbrown-8559ad8073936cd5,libjson_patch-aacff8c736e0719a,libthiserror-0357c968b2ac5815,libjsonptr-a4a9038b5dd833a4,libserde_with-215894130b904672,libhttp-3c7a19839bc841ea,libbytes-1678f1a459ca6695,libphf-7a21bd2151295c83,libphf_shared-e943811de2934947,libsiphasher-3e27cc8edfbb8a3c,libtoml-b189a5c5106b8aee,libtoml_writer-27d2214cd33bda18,libtoml_parser-0a9d04e0e50f8385,libwinnow-bc9b4fe98d34bfc6,libserde_spanned-5772c1212595f847,libtoml_datetime-94673f70a9f3412b,libserde_untagged-6ad244aca811f237,liberased_serde-b432b6379f8ef5e7,libtypeid-58443fb9f9e50e20,liburl-dbce81ec8f0ccc07,libidna-36aa0351d10961e0,libidna_adapter-9c865ff76580cb8a,libicu_properties-e7364f2de183967e,libicu_properties_data-a892371a36b9180e,libicu_normalizer-98279902719a1548,libsmallvec-f2026ce012fa82ac,libicu_normalizer_data-5a1af3a03161a543,libicu_collections-2ac37ec1553110ef,libutf8_iter-55c63e75d2198717,libpotential_utf-098d7a90a9226985,libicu_provider-91bb96740f8ad0ea,libicu_locale_core-fb776caeeb38d0fb,libtinystr-f3552f4afb248272,liblitemap-2e115b536290f3e6,libwriteable-841e0ac92f603487,libzerovec-b59ce4cd28d2d285,libzerotrie-c7e978a03e0ed036,libyoke-9ee35728cfd08458,libstable_deref_trait-64f30039b2c2300d,libzerofrom-c7076442f477d8c9,libform_urlencoded-1c32d553b38f8bf1,libpercent_encoding-956bedaa8b1c0286,libthiserror-ae19b74386172cd7,libanyhow-3ebb6e5db4a17590,libserde-e2694397ef786bc2,libsemver-cecd1e6337c19648,libserde_json-53df10cab76d87af,libmemchr-480240aaef38b342,libitoa-763a2aea54fe86e2,libzmij-1faf30804ce93173,libserde_core-e1937db25e1fdb9b}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lEGL" "-lgbm" "-lwayland-client" "-lwayland-server" "-ldl" "-lpipewire-0.3" "-lpipewire-0.3" "-lxcb" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-lgdk_pixbuf-2.0" "-lcairo-gobject" "-lcairo" "-lgobject-2.0" "-lglib-2.0" "-ldbus-1" "-ldl" "-lgobject-2.0" "-lwebkit2gtk-4.1" "-lgtk-3" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-latk-1.0" "-lcairo-gobject" "-lcairo" "-lgdk_pixbuf-2.0" "-lsoup-3.0" "-lgmodule-2.0" "-lgio-2.0" "-ljavascriptcoregtk-4.1" "-lgobject-2.0" "-lglib-2.0" "-lsoup-3.0" "-lgmodule-2.0" "-lgio-2.0" "-lgobject-2.0" "-lglib-2.0" "-ljavascriptcoregtk-4.1" "-lgobject-2.0" "-lglib-2.0" "-lgtk-3" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-latk-1.0" "-lcairo-gobject" "-lcairo" "-lgdk_pixbuf-2.0" "-lgio-2.0" "-lgobject-2.0" "-lglib-2.0" "-latk-1.0" "-lgobject-2.0" "-lglib-2.0" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-lgdk_pixbuf-2.0" "-lcairo-gobject" "-lcairo" "-lgobject-2.0" "-lglib-2.0" "-lpango-1.0" "-lgobject-2.0" "-lglib-2.0" "-lharfbuzz" "-lgdk_pixbuf-2.0" "-lgobject-2.0" "-lglib-2.0" "-lgio-2.0" "-lgobject-2.0" "-lglib-2.0" "-lcairo-gobject" "-lcairo" "-lgobject-2.0" "-lglib-2.0" "-lgobject-2.0" "-lglib-2.0" "-lgobject-2.0" "-lglib-2.0" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/runner/work/pluto/pluto/src-tauri/target/debug/deps/rustcLsTFtZ/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/home/runner/work/pluto/pluto/src-tauri/target/debug/build/libspa-e7e5d0ccab5cc73e/out" "-L" "/home/runner/work/pluto/pluto/src-tauri/target/debug/build/libspa-sys-a65c81fb1fb7a3b4/out" "-L" "/usr/lib/x86_64-linux-gnu" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/runner/work/pluto/pluto/src-tauri/target/debug/deps/pluto_lib-e9ce665a855765f6" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-nodefaultlibs"
+  [1m[94m= [0m[1mnote[0m: some arguments are omitted. use `--verbose` to show all linker arguments
+  [1m[94m= [0m[1mnote[0m: rust-lld: error: unable to find library -lgbm
+          collect2: error: ld returned 1 exit status
+          
+
+[1m[33mwarning[0m: `pluto` (lib test) generated 11 warnings
+[1m[91merror[0m: could not compile `pluto` (lib test) due to 1 previous error; 11 warnings emitted
 EXIT=101
 
 ===== tauri build =====
-[1m[33mwarning[0m[1m: unused import: `std::sync::atomic::Ordering`[0m
- [1m[94m--> [0msrc/commands.rs:8:5
-  [1m[94m|[0m
-[1m[94m8[0m [1m[94m|[0m use std::sync::atomic::Ordering;
-  [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
-  [1m[94m|[0m
-  [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-[1m[33mwarning[0m[1m: unused import: `run_process`[0m
-  [1m[94m--> [0msrc/tools/terminal.rs:10:27
-   [1m[94m|[0m
-[1m[94m10[0m [1m[94m|[0m use super::{find_program, run_process, ToolResult};
-   [1m[94m|[0m                           [1m[33m^^^^^^^^^^^[0m
-
-[1m[91merror[E0061][0m[1m: this function takes 4 arguments but 2 arguments were supplied[0m
-   [1m[94m--> [0msrc/assistant.rs:277:22
-    [1m[94m|[0m
-[1m[94m277[0m [1m[94m|[0m         let result = tools::run_tool(tool_name, arguments).await;
-    [1m[94m|[0m                      [1m[91m^^^^^^^^^^^^^^^[0m[1m[94m----------------------[0m
-    [1m[94m|[0m                                     [1m[94m|[0m           [1m[94m|[0m
-    [1m[94m|[0m                                     [1m[94m|[0m           [1m[94mexpected `&[&str]`, found `&&Value`[0m
-    [1m[94m|[0m                                     [1m[94mtwo arguments of type `u64` and `&[(&str, &str)]` are missing[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: expected reference `&[1m[35m[&str][0m`
-               found reference `&[1m[35m&[0m[1m[35mserde_json::Value[0m`
-[1m[92mnote[0m: function defined here
-   [1m[94m--> [0msrc/tools/mod.rs:161:8
-    [1m[94m|[0m
-[1m[94m161[0m [1m[94m|[0m pub fn run_tool(
-    [1m[94m|[0m        [1m[92m^^^^^^^^[0m
-[1m[94m162[0m [1m[94m|[0m     tool: &str,
-[1m[94m163[0m [1m[94m|[0m     args: &[&str],
-    [1m[94m|[0m     [1m[94m-------------[0m
-[1m[94m164[0m [1m[94m|[0m     timeout_ms: u64,
-    [1m[94m|[0m     [1m[94m---------------[0m
-[1m[94m165[0m [1m[94m|[0m     env: &[(&str, &str)],
-    [1m[94m|[0m     [1m[94m--------------------[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m277[0m [91m- [0m        let result = tools::run_tool[91m(tool_name, arguments)[0m.await;
-[1m[94m277[0m [92m+ [0m        let result = tools::run_tool[92m(tool_name, /* &[&str] */, /* u64 */, /* &[(&str, &str)] */)[0m.await;
-    [1m[94m|[0m
-
-[1m[91merror[E0277][0m[1m: `ToolResult` is not a future[0m
-   [1m[94m--> [0msrc/assistant.rs:277:60
-    [1m[94m|[0m
-[1m[94m277[0m [1m[94m|[0m         let result = tools::run_tool(tool_name, arguments).await;
-    [1m[94m|[0m                      [1m[94m-------------------------------------[0m [1m[91m^^^^^[0m [1m[91m`ToolResult` is not a future[0m
-    [1m[94m|[0m                      [1m[94m|[0m
-    [1m[94m|[0m                      [1m[94mthis call returns `ToolResult`[0m
-    [1m[94m|[0m
-[1m[96mhelp[0m: the trait `Future` is not implemented for `ToolResult`
-   [1m[94m--> [0msrc/tools/mod.rs:13:1
-    [1m[94m|[0m
-[1m[94m 13[0m [1m[94m|[0m pub struct ToolResult {
-    [1m[94m|[0m [1m[96m^^^^^^^^^^^^^^^^^^^^^[0m
-    [1m[94m= [0m[1mnote[0m: ToolResult must be a future or must implement `IntoFuture` to be awaited
-    [1m[94m= [0m[1mnote[0m: required for `ToolResult` to implement `IntoFuture`
-[1m[96mhelp[0m: remove the `.await`
-    [1m[94m|[0m
-[1m[94m277[0m [91m- [0m        let result = tools::run_tool(tool_name, arguments)[91m.await[0m;
-[1m[94m277[0m [92m+ [0m        let result = tools::run_tool(tool_name, arguments);
-    [1m[94m|[0m
-[1m[96mhelp[0m: alternatively, consider making `fn run_tool` asynchronous
-   [1m[94m--> [0msrc/tools/mod.rs:161:4
-    [1m[94m|[0m
-[1m[94m161[0m [1m[94m| [0mpub[92m async[0m fn run_tool(
-    [1m[94m|[0m     [92m+++++[0m
-
-[1m[91merror[E0599][0m[1m: no method named `long_os_version` found for struct `sysinfo::System` in the current scope[0m
-   [1m[94m--> [0msrc/commands.rs:169:10
-    [1m[94m|[0m
-[1m[94m168[0m [1m[94m|[0m       let os = sys
-    [1m[94m|[0m [1m[94m ______________-[0m
-[1m[94m169[0m [1m[94m|[0m [1m[94m|[0m         .long_os_version()
-    [1m[94m|[0m [1m[94m|[0m         [1m[94m-[0m[1m[91m^^^^^^^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
-    [1m[94m|[0m [1m[94m|_________|[0m
-    [1m[94m|[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
-    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
-[1m[96mhelp[0m: use associated function syntax instead
-    [1m[94m|[0m
-[1m[94m168[0m [91m- [0m    let os = [91msys[0m
-[1m[94m169[0m [91m-         .long_os_version()[0m
-[1m[94m168[0m [92m+ [0m    let os = [92msysinfo::System::long_os_version()[0m
-    [1m[94m|[0m
-
-[1m[91merror[E0599][0m[1m: no method named `os_version` found for struct `sysinfo::System` in the current scope[0m
-   [1m[94m--> [0msrc/commands.rs:170:25
-    [1m[94m|[0m
-[1m[94m170[0m [1m[94m|[0m         .or_else(|| sys.os_version())
-    [1m[94m|[0m                         [1m[91m^^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
-    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
-[1m[96mhelp[0m: use associated function syntax instead
-    [1m[94m|[0m
-[1m[94m170[0m [91m- [0m        .or_else(|| [91msys.os_version()[0m)
-[1m[94m170[0m [92m+ [0m        .or_else(|| [92msysinfo::System::os_version()[0m)
-    [1m[94m|[0m
-
-[1m[91merror[E0599][0m[1m: no method named `host_name` found for struct `sysinfo::System` in the current scope[0m
-   [1m[94m--> [0msrc/commands.rs:184:19
-    [1m[94m|[0m
-[1m[94m184[0m [1m[94m|[0m         host: sys.host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
-    [1m[94m|[0m                   [1m[91m^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
-    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
-[1m[96mhelp[0m: use associated function syntax instead
-    [1m[94m|[0m
-[1m[94m184[0m [91m- [0m        host: [91msys.host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
-[1m[94m184[0m [92m+ [0m        host: [92msysinfo::System::host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
-    [1m[94m|[0m
-
-[1m[91merror[E0382][0m[1m: borrow of moved value: `name`[0m
-   [1m[94m--> [0msrc/tools/mod.rs:229:21
-    [1m[94m|[0m
-[1m[94m187[0m [1m[94m|[0m     let name = name.to_string();
-    [1m[94m|[0m         [1m[94m----[0m [1m[94mmove occurs because `name` has type `std::string::String`, which does not implement the `Copy` trait[0m
-[1m[94m188[0m [1m[94m|[0m     let arguments = arguments.clone();
-[1m[94m189[0m [1m[94m|[0m     tauri::async_runtime::spawn_blocking(move || {
-    [1m[94m|[0m                                          [1m[94m-------[0m [1m[94mvalue moved into closure here[0m
-[1m[94m190[0m [1m[94m|[0m         match name.as_str() {
-    [1m[94m|[0m               [1m[94m----[0m [1m[94mvariable moved due to use in closure[0m
-[1m[94m...[0m
-[1m[94m229[0m [1m[94m|[0m     .unwrap_or_else(|e| ToolResult::fail(&name, format!("Tool task panicked: {}", e)))
-    [1m[94m|[0m                     [1m[91m^^^[0m                   [1m[94m----[0m [1m[94mborrow occurs due to use in closure[0m
-    [1m[94m|[0m                     [1m[91m|[0m
-    [1m[94m|[0m                     [1m[91mvalue borrowed here after move[0m
-    [1m[94m|[0m
-[1m[96mhelp[0m: consider cloning the value before moving it into the closure
-    [1m[94m|[0m
-[1m[94m189[0m [92m~ [0m    tauri::async_runtime::spawn_blocking([92m{[0m
-[1m[94m190[0m [92m+     let value = name.clone();[0m
-[1m[94m191[0m [92m~     [0mmove || {
-[1m[94m192[0m [92m~ [0m        match [92mvalue[0m.as_str() {
-[1m[94m193[0m [1m[94m|[0m             // system
-[1m[94m...[0m
-[1m[94m228[0m [1m[94m|[0m         }
-[1m[94m229[0m [92m~ [0m    }
-[1m[94m230[0m [92m~     }[0m)
-    [1m[94m|[0m
-
-[1m[91merror[E0308][0m[1m: mismatched types[0m
-    [1m[94m--> [0msrc/nlu.rs:1127:30
-     [1m[94m|[0m
-[1m[94m1119[0m [1m[94m|[0m     let mut recipient_part = t.clone();
-     [1m[94m|[0m                              [1m[94m---------[0m [1m[94mexpected due to this value[0m
-[1m[94m...[0m
-[1m[94m1127[0m [1m[94m|[0m             recipient_part = recipient_part[..idx].to_string();
-     [1m[94m|[0m                              [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mexpected `&str`, found `String`[0m
-     [1m[94m|[0m
-[1m[96mhelp[0m: consider borrowing here
-     [1m[94m|[0m
-[1m[94m1127[0m [1m[94m| [0m            recipient_part = [92m&[0mrecipient_part[..idx].to_string();
-     [1m[94m|[0m                              [92m+[0m
-
-[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
-   [1m[94m--> [0msrc/tools/apps.rs:13:9
-    [1m[94m|[0m
-[1m[94m 13[0m [1m[94m|[0m     sys.refresh_processes();
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: method defined here
-   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
-    [1m[94m|[0m
-[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
-    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m 13[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
-    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
-
-[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
-   [1m[94m--> [0msrc/tools/apps.rs:246:9
-    [1m[94m|[0m
-[1m[94m246[0m [1m[94m|[0m     sys.refresh_processes();
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: method defined here
-   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
-    [1m[94m|[0m
-[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
-    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m246[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
-    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
-
-[1m[91merror[E0308][0m[1m: `if` and `else` have incompatible types[0m
-   [1m[94m--> [0msrc/tools/system.rs:249:17
-    [1m[94m|[0m
-[1m[94m242[0m [1m[94m|[0m                 let level = if let Some(idx) = stdout.find("volume:") {
-    [1m[94m|[0m [1m[94m ___________________________-[0m
-[1m[94m243[0m [1m[94m|[0m [1m[94m|[0m                   let rest = &stdout[idx + 7..];
-[1m[94m244[0m [1m[94m|[0m [1m[94m|[0m [1m[94m/[0m                 rest.split_whitespace()
-[1m[94m245[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .next()
-[1m[94m246[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .and_then(|s| s.trim_start_matches('[').trim_end_matches(']').parse::<f64>().ok())
-[1m[94m247[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .map(|v| (v * 100.0).round() as u64)
-    [1m[94m|[0m [1m[94m|[0m [1m[94m|________________________________________________________-[0m [1m[94mexpected because of this[0m
-[1m[94m248[0m [1m[94m|[0m [1m[94m|[0m               } else {
-[1m[94m249[0m [1m[94m|[0m [1m[94m|[0m [1m[91m/[0m                 stdout
-[1m[94m250[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .split(|c: char| c == ' ' || c == '\n')
-[1m[94m251[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
-[1m[94m252[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .unwrap_or(0)
-    [1m[94m|[0m [1m[94m|[0m [1m[91m|_________________________________^[0m [1m[91mexpected `Option<u64>`, found `u64`[0m
-[1m[94m253[0m [1m[94m|[0m [1m[94m|[0m               };
-    [1m[94m|[0m [1m[94m|_______________-[0m [1m[94m`if` and `else` have incompatible types[0m
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: expected enum `[1m[35mstd::option::Option<u64>[0m`
-               found type `[1m[35mu64[0m`
-[1m[96mhelp[0m: try wrapping the expression in `Some`
-    [1m[94m|[0m
-[1m[94m249[0m [92m~ [0m                [92mSome([0mstdout
-[1m[94m250[0m [1m[94m|[0m                     .split(|c: char| c == ' ' || c == '\n')
-[1m[94m251[0m [1m[94m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
-[1m[94m252[0m [92m~ [0m                    .unwrap_or(0)[92m)[0m
-    [1m[94m|[0m
-
-[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
-   [1m[94m--> [0msrc/tools/system.rs:350:9
-    [1m[94m|[0m
-[1m[94m350[0m [1m[94m|[0m     sys.refresh_processes();
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: method defined here
-   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
-    [1m[94m|[0m
-[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
-    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
-[1m[96mhelp[0m: provide the arguments
-    [1m[94m|[0m
-[1m[94m350[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
-    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
-
-[1m[91merror[E0277][0m[1m: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `FromResidual`)[0m
-   [1m[94m--> [0msrc/tools/terminal.rs:179:69
-    [1m[94m|[0m
-[1m[94m162[0m [1m[94m|[0m pub fn execute_command(arguments: &Value) -> ToolResult {
-    [1m[94m|[0m [1m[94m-------------------------------------------------------[0m [1m[94mthis function should return `Result` or `Option` to accept `?`[0m
-[1m[94m...[0m
-[1m[94m179[0m [1m[94m|[0m                 .map_err(|e| ToolResult::fail("execute_command", e))?,
-    [1m[94m|[0m                                                                     [1m[91m^[0m [1m[91mcannot use the `?` operator in a function that returns `ToolResult`[0m
-
-[1m[91merror[E0382][0m[1m: use of moved value: `best`[0m
-   [1m[94m--> [0msrc/nlu.rs:245:5
-    [1m[94m|[0m
-[1m[94m239[0m [1m[94m|[0m     let mut best: Option<(usize, String)> = None;
-    [1m[94m|[0m         [1m[94m--------[0m [1m[94mmove occurs because `best` has type `std::option::Option<(usize, std::string::String)>`, which does not implement the `Copy` trait[0m
-[1m[94m240[0m [1m[94m|[0m     for (alias, path) in DIR_ALIASES {
-    [1m[94m|[0m     [1m[94m--------------------------------[0m [1m[94minside of this loop[0m
-[1m[94m241[0m [1m[94m|[0m         if t.contains(alias) && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
-    [1m[94m|[0m                                      [1m[94m---------------------------------[0m [1m[94m`best` moved due to this method call, in previous iteration of loop[0m
-[1m[94m242[0m [1m[94m|[0m             best = Some((alias.len(), expand_home(path)));
-    [1m[94m|[0m             [1m[94m----[0m [1m[94mthis reinitialization might get skipped[0m
-[1m[94m...[0m
-[1m[94m245[0m [1m[94m|[0m     best.map(|(_, p)| p).unwrap_or_else(|| expand_home(default))
-    [1m[94m|[0m     [1m[91m^^^^[0m [1m[91mvalue used here after move[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: `std::option::Option::<T>::map` takes ownership of the receiver `self`, which moves `best`
-   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:1158:27
-[1m[96mhelp[0m: you can `clone` the value and consume it, but this might not be your desired behavior
-    [1m[94m|[0m
-[1m[94m241[0m [1m[94m| [0m        if t.contains(alias) && best[92m.clone()[0m.map(|(len, _)| alias.len() > len).unwrap_or(true) {
-    [1m[94m|[0m                                     [92m++++++++[0m
-
+[1m[92m   Compiling[0m time-core v0.1.9
+[1m[92m   Compiling[0m glib-macros v0.18.5
+[1m[92m   Compiling[0m tinystr v0.8.4
+[1m[92m   Compiling[0m gdk-pixbuf-sys v0.18.0
+[1m[92m   Compiling[0m cairo-sys-rs v0.18.2
+[1m[92m   Compiling[0m pango-sys v0.18.0
+[1m[92m   Compiling[0m rustc_version v0.4.1
+[1m[92m   Compiling[0m phf_codegen v0.13.1
+[1m[92m   Compiling[0m futures-channel v0.3.34
+[1m[92m   Compiling[0m strsim v0.11.1
+[1m[92m   Compiling[0m writeable v0.6.4
+[1m[92m   Compiling[0m erased-serde v0.4.10
+[1m[92m   Compiling[0m itoa v1.0.18
+[1m[92m   Compiling[0m ident_case v1.0.1
+[1m[92m   Compiling[0m litemap v0.8.3
+[1m[92m   Compiling[0m darling_core v0.24.1
+[1m[92m   Compiling[0m icu_locale_core v2.3.0
+[1m[92m   Compiling[0m futures-executor v0.3.34
+[1m[92m   Compiling[0m potential_utf v0.1.6
+[1m[92m   Compiling[0m atk-sys v0.18.2
+[1m[92m   Compiling[0m zerotrie v0.2.5
+[1m[92m   Compiling[0m utf8_iter v1.0.4
+[1m[92m   Compiling[0m glib v0.18.5
+[1m[92m   Compiling[0m icu_provider v2.3.1
+[1m[92m   Compiling[0m icu_collections v2.3.0
+[1m[92m   Compiling[0m crossbeam-utils v0.8.23
+[1m[92m   Compiling[0m anyhow v1.0.104
+[1m[92m   Compiling[0m new_debug_unreachable v1.0.6
+[1m[92m   Compiling[0m scopeguard v1.2.0
+[1m[92m   Compiling[0m lock_api v0.4.14
+[1m[92m   Compiling[0m phf v0.13.1
+[1m[92m   Compiling[0m string_cache_codegen v0.6.1
+[1m[92m   Compiling[0m getrandom v0.4.3
+[1m[92m   Compiling[0m precomputed-hash v0.1.1
+[1m[92m   Compiling[0m target-lexicon v0.13.5
+[1m[92m   Compiling[0m darling_macro v0.24.1
+[1m[92m   Compiling[0m serde_json v1.0.151
+[1m[92m   Compiling[0m gio v0.18.4
+[1m[92m   Compiling[0m crc32fast v1.5.1
+[1m[92m   Compiling[0m darling v0.24.1
+[1m[92m   Compiling[0m web_atoms v0.2.6
+[1m[92m   Compiling[0m serde_with_macros v3.23.0
+[1m[92m   Compiling[0m parking_lot v0.12.5
+[1m[92m   Compiling[0m icu_properties v2.3.0
+[1m[92m   Compiling[0m icu_normalizer v2.3.0
+[1m[92m   Compiling[0m gtk-sys v0.18.2
+[1m[92m   Compiling[0m clang-sys v1.9.1
+[1m[92m   Compiling[0m ctor-proc-macro v0.0.7
+[1m[92m   Compiling[0m idna_adapter v1.2.2
+[1m[92m   Compiling[0m string_cache v0.9.0
+[1m[92m   Compiling[0m quick-xml v0.41.0
+[1m[92m   Compiling[0m dtoa v1.0.11
+[1m[92m   Compiling[0m parking v2.2.1
+[1m[92m   Compiling[0m percent-encoding v2.3.2
+[1m[92m   Compiling[0m minimal-lexical v0.2.1
+[1m[92m   Compiling[0m nom v7.1.3
+[1m[92m   Compiling[0m form_urlencoded v1.2.2
+[1m[92m   Compiling[0m dtoa-short v0.3.5
+[1m[92m   Compiling[0m cfg-expr v0.20.9
+[1m[92m   Compiling[0m uuid v1.26.0
+[1m[92m   Compiling[0m idna v1.1.0
+[1m[92m   Compiling[0m tendril v0.5.1
+[1m[92m   Compiling[0m selectors v0.36.1
+[1m[92m   Compiling[0m libloading v0.8.9
+[1m[92m   Compiling[0m indexmap v1.9.3
+[1m[92m   Compiling[0m cssparser-macros v0.6.1
+[1m[92m   Compiling[0m derive_more-impl v2.1.1
+[1m[92m   Compiling[0m wayland-sys v0.31.11
+[1m[92m   Compiling[0m unic-common v0.9.0
+[1m[92m   Compiling[0m rand_core v0.10.1
+[1m[92m   Compiling[0m either v1.18.0
+[1m[92m   Compiling[0m bindgen v0.72.1
+[1m[92m   Compiling[0m alloc-no-stdlib v2.0.4
+[1m[92m   Compiling[0m camino v1.2.5
+[1m[92m   Compiling[0m byteorder v1.5.0
+[1m[92m   Compiling[0m unic-char-range v0.9.0
+[1m[92m   Compiling[0m anstyle v1.0.14
+[1m[92m   Compiling[0m unicode-width v0.2.2
+[1m[92m   Compiling[0m unic-char-property v0.9.0
+[1m[92m   Compiling[0m annotate-snippets v0.11.5
+[1m[92m   Compiling[0m alloc-stdlib v0.2.4
+[1m[92m   Compiling[0m derive_more v2.1.1
+[1m[92m   Compiling[0m itertools v0.13.0
+[1m[92m   Compiling[0m unic-ucd-version v0.9.0
+[1m[92m   Compiling[0m cssparser v0.36.0
+[1m[92m   Compiling[0m dlib v0.5.3
+[1m[92m   Compiling[0m markup5ever v0.38.0
+[1m[92m   Compiling[0m url v2.5.8
+[1m[92m   Compiling[0m cexpr v0.6.0
+[1m[92m   Compiling[0m system-deps v7.0.8
+[1m[92m   Compiling[0m wayland-backend v0.3.17
+[1m[92m   Compiling[0m servo_arc v0.4.3
+[1m[92m   Compiling[0m serde_derive_internals v0.29.1
+[1m[92m   Compiling[0m hashbrown v0.12.3
+[1m[92m   Compiling[0m shlex v1.3.0
+[1m[92m   Compiling[0m powerfmt v0.2.0
+[1m[92m   Compiling[0m fnv v1.0.7
+[1m[92m   Compiling[0m deranged v0.5.8
+[1m[92m   Compiling[0m bit-vec v0.8.0
+[1m[92m   Compiling[0m schemars v0.8.22
+[1m[92m   Compiling[0m bit-set v0.8.0
+[1m[92m   Compiling[0m cfb v0.7.3
+[1m[92m   Compiling[0m schemars_derive v0.8.22
+[1m[92m   Compiling[0m time v0.3.55
+[1m[92m   Compiling[0m html5ever v0.38.0
+[1m[92m   Compiling[0m unic-ucd-ident v0.9.0
+[1m[92m   Compiling[0m brotli-decompressor v5.0.3
+[1m[92m   Compiling[0m pango v0.18.3
+[1m[92m   Compiling[0m gdk-pixbuf v0.18.5
+[1m[92m   Compiling[0m cairo-rs v0.18.5
+[1m[92m   Compiling[0m jsonptr v0.6.3
+[1m[92m   Compiling[0m field-offset v0.3.6
+[1m[92m   Compiling[0m toml_edit v0.19.15
+[1m[92m   Compiling[0m cargo-platform v0.1.9
+[1m[92m   Compiling[0m quick-xml v0.42.0
+[1m[92m   Compiling[0m bytes v1.12.1
+[1m[92m   Compiling[0m same-file v1.0.6
+[1m[92m   Compiling[0m scoped-tls v1.0.1
+[1m[92m   Compiling[0m dyn-clone v1.0.20
+[1m[92m   Compiling[0m downcast-rs v1.2.1
+[1m[92m   Compiling[0m foldhash v0.2.0
+[1m[92m   Compiling[0m dunce v1.0.5
+[1m[92m   Compiling[0m base64 v0.23.1
+[1m[92m   Compiling[0m plist v1.10.1
+[1m[92m   Compiling[0m proc-macro-crate v1.3.1
+[1m[92m   Compiling[0m dom_query v0.27.0
+[1m[92m   Compiling[0m http v1.5.0
+[1m[92m   Compiling[0m walkdir v2.5.0
+[1m[92m   Compiling[0m cargo_metadata v0.19.2
+[1m[92m   Compiling[0m json-patch v3.0.1
+[1m[92m   Compiling[0m gdk v0.18.2
+[1m[92m   Compiling[0m brotli v8.0.4
+[1m[92m   Compiling[0m urlpattern v0.3.0
+[1m[92m   Compiling[0m serde-untagged v0.1.9
+[1m[92m   Compiling[0m infer v0.19.0
+[1m[92m   Compiling[0m wayland-scanner v0.31.11
+[1m[92m   Compiling[0m ctor v0.8.0
+[1m[92m   Compiling[0m serde_with v3.23.0
+[1m[92m   Compiling[0m soup3-sys v0.5.0
+[1m[92m   Compiling[0m javascriptcore-rs-sys v1.1.1
+[1m[92m   Compiling[0m toml_edit v0.25.13+spec-1.1.0
+[1m[92m   Compiling[0m generic-array v0.14.7
+[1m[92m   Compiling[0m enumflags2_derive v0.7.12
+[1m[92m   Compiling[0m gtk v0.18.2
+[1m[92m   Compiling[0m simd-adler32 v0.3.10
+[1m[92m   Compiling[0m tauri-utils v2.9.3
+[1m[92m   Compiling[0m proc-macro-crate v3.5.0
+[1m[92m   Compiling[0m gtk3-macros v0.18.2
+[1m[92m   Compiling[0m libspa-sys v0.10.1
+[1m[92m   Compiling[0m atk v0.18.2
+[1m[92m   Compiling[0m event-listener v5.4.2
+[1m[92m   Compiling[0m concurrent-queue v2.5.0
+[1m[92m   Compiling[0m time-macros v0.2.32
+[1m[92m   Compiling[0m webkit2gtk-sys v2.0.2
+[1m[92m   Compiling[0m zvariant_utils v4.2.0
+[1m[92m   Compiling[0m toml_datetime v0.7.5+spec-1.1.0
+[1m[92m   Compiling[0m x11 v2.21.0
+[1m[92m   Compiling[0m winnow v0.7.15
+[1m[92m   Compiling[0m option-ext v0.2.0
+[1m[92m   Compiling[0m drm-sys v0.8.1
+[1m[92m   Compiling[0m adler2 v2.0.1
+[1m[92m   Compiling[0m wayland-client v0.31.15
+[1m[92m   Compiling[0m khronos_api v3.1.0
+[1m[92m   Compiling[0m typenum v1.20.1
+[1m[92m   Compiling[0m toml v0.9.12+spec-1.1.0
+[1m[92m   Compiling[0m dirs-sys v0.5.0
+[1m[92m   Compiling[0m zvariant_derive v5.15.0
+[1m[92m   Compiling[0m event-listener-strategy v0.5.4
+[1m[92m   Compiling[0m futures-lite v2.6.1
+[1m[92m   Compiling[0m embed-resource v3.0.11
+[1m[92m   Compiling[0m gdkx11-sys v0.18.2
+[1m[92m   Compiling[0m bytemuck_derive v1.12.0
+[1m[92m   Compiling[0m errno v0.3.14
+[1m[92m   Compiling[0m bitflags v1.3.2
+[1m[92m   Compiling[0m linux-raw-sys v0.9.4
+[1m[92m   Compiling[0m drm-fourcc v2.2.0
+[1m[92m   Compiling[0m bytemuck v1.25.2
+[1m[92m   Compiling[0m signal-hook-registry v1.4.8
+[1m[92m   Compiling[0m tauri-winres v0.3.6
+[1m[92m   Compiling[0m dirs v6.0.0
+[1m[92m   Compiling[0m cargo_toml v0.22.3
+[1m[92m   Compiling[0m miniz_oxide v0.9.1
+[1m[92m   Compiling[0m dpi v0.1.2
+[1m[92m   Compiling[0m cookie v0.18.2
+[1m[92m   Compiling[0m nom v8.0.0
+[1m[92m   Compiling[0m async-io v2.6.0
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m x11-dl v2.21.0
+[1m[92m   Compiling[0m libdbus-sys v0.2.7
+[1m[92m   Compiling[0m rustix v0.38.44
+[1m[92m   Compiling[0m xml-rs v0.8.29
+[1m[92m   Compiling[0m gl_generator v0.14.0
+[1m[92m   Compiling[0m tauri-build v2.6.3
+[1m[92m   Compiling[0m flate2 v1.1.10
+[1m[92m   Compiling[0m wayland-protocols v0.32.13
+[1m[92m   Compiling[0m drm-ffi v0.9.1
+[1m[92m   Compiling[0m javascriptcore-rs v1.1.2
+[1m[92m   Compiling[0m soup3 v0.5.0
+[1m[92m   Compiling[0m crypto-common v0.1.7
+[1m[92m   Compiling[0m block-buffer v0.10.4
+[1m[92m   Compiling[0m miniz_oxide v0.8.9
+[1m[92m   Compiling[0m fdeflate v0.3.7
+[1m[92m   Compiling[0m enumflags2 v0.7.12
+[1m[92m   Compiling[0m polling v3.11.0
+[1m[92m   Compiling[0m zcheapstr v1.1.0
+[1m[92m   Compiling[0m async-task v4.7.1
+[1m[92m   Compiling[0m linux-raw-sys v0.4.15
+[1m[92m   Compiling[0m foldhash v0.1.5
+[1m[92m   Compiling[0m gbm-sys v0.4.0
+[1m[92m   Compiling[0m endi v1.1.1
+[1m[92m   Compiling[0m raw-window-handle v0.6.2
+[1m[92m   Compiling[0m png v0.17.16
+[1m[92m   Compiling[0m zvariant v5.15.0
+[1m[92m   Compiling[0m hashbrown v0.15.5
+[1m[92m   Compiling[0m digest v0.10.7
+[1m[92m   Compiling[0m webkit2gtk v2.0.2
+[1m[92m   Compiling[0m wayland-protocols-wlr v0.3.12
+[1m[92m   Compiling[0m gl v0.14.0
+[1m[92m   Compiling[0m async-channel v2.5.0
+[1m[92m   Compiling[0m pipewire-sys v0.10.1
+[1m[92m   Compiling[0m libspa v0.10.1
+[1m[92m   Compiling[0m crossbeam-channel v0.5.17
+[1m[92m   Compiling[0m tracing-core v0.1.36
+[1m[92m   Compiling[0m dlopen2_derive v0.4.3
+[1m[92m   Compiling[0m tracing-attributes v0.1.31
+[1m[92m   Compiling[0m khronos-egl v6.0.0
+[1m[92m   Compiling[0m pxfm v0.1.30
+[1m[92m   Compiling[0m fixedbitset v0.5.7
+[1m[92m   Compiling[0m atomic-waker v1.1.2
+[1m[92m   Compiling[0m tauri-runtime v2.11.3
+[1m[92m   Compiling[0m cpufeatures v0.2.17
+[1m[92m   Compiling[0m wry v0.55.1
+[1m[92m   Compiling[0m sha2 v0.10.9
+[1m[92m   Compiling[0m moxcms v0.8.1
+[1m[92m   Compiling[0m piper v0.2.5
+[1m[92m   Compiling[0m petgraph v0.8.3
+[1m[92m   Compiling[0m tracing v0.1.44
+[1m[92m   Compiling[0m dlopen2 v0.8.2
+[1m[92m   Compiling[0m png v0.18.1
+[1m[92m   Compiling[0m dbus v0.9.12
+[1m[92m   Compiling[0m drm v0.14.1
+[1m[92m   Compiling[0m async-signal v0.2.14
+[1m[92m   Compiling[0m zbus_names v4.3.4
+[1m[92m   Compiling[0m ico v0.5.0
+[1m[92m   Compiling[0m gdkx11 v0.18.2
+[1m[92m   Compiling[0m tauri v2.11.5
+[1m[92m   Compiling[0m async-lock v3.4.2
+[1m[92m   Compiling[0m wayland-server v0.31.14
+[1m[92m   Compiling[0m xcb v1.7.1
+[1m[92m   Compiling[0m gdkwayland-sys v0.18.2
+[1m[92m   Compiling[0m serde_repr v0.1.21
+[1m[92m   Compiling[0m utf8parse v0.2.2
+[1m[92m   Compiling[0m byteorder-lite v0.1.0
+[1m[92m   Compiling[0m unicode-segmentation v1.13.3
+[1m[92m   Compiling[0m cpufeatures v0.3.1
+[1m[92m   Compiling[0m cookie-factory v0.3.3
+[1m[92m   Compiling[0m base64 v0.22.1
+[1m[92m   Compiling[0m tauri-runtime-wry v2.11.4
+[1m[92m   Compiling[0m getrandom v0.3.4
+[1m[92m   Compiling[0m tauri-codegen v2.6.3
+[1m[92m   Compiling[0m keyboard-types v0.7.0
+[1m[92m   Compiling[0m chacha20 v0.10.2
+[1m[92m   Compiling[0m image v0.25.10
+[1m[92m   Compiling[0m anstyle-parse v1.0.0
+[1m[92m   Compiling[0m tao v0.35.3
+[1m[92m   Compiling[0m gbm v0.18.0
+[1m[92m   Compiling[0m async-process v2.5.0
+[1m[92m   Compiling[0m zbus_macros v5.19.0
+[1m[92m   Compiling[0m tree_magic_mini v3.2.2
+[1m[92m   Compiling[0m blocking v1.7.0
+[1m[92m   Compiling[0m async-executor v1.14.0
+[1m[92m   Compiling[0m drm v0.15.0
+[1m[92m   Compiling[0m async-broadcast v0.7.2
+[1m[92m   Compiling[0m gethostname v1.1.0
+[1m[92m   Compiling[0m ordered-stream v0.2.0
+[1m[92m   Compiling[0m async-recursion v1.1.1
+[1m[92m   Compiling[0m serialize-to-javascript-impl v0.1.2
+[1m[92m   Compiling[0m tokio-macros v2.7.2
+[1m[92m   Compiling[0m async-trait v0.1.92
+[1m[92m   Compiling[0m os_pipe v1.2.3
+[1m[92m   Compiling[0m mio v1.2.3
+[1m[92m   Compiling[0m memmap2 v0.9.11
+[1m[92m   Compiling[0m jiff-core v0.1.0
+[1m[92m   Compiling[0m is_terminal_polyfill v1.70.2
+[1m[92m   Compiling[0m hex v0.4.3
+[1m[92m   Compiling[0m xcap v0.9.8
+[1m[92m   Compiling[0m x11rb-protocol v0.13.2
+[1m[92m   Compiling[0m colorchoice v1.0.5
+[1m[92m   Compiling[0m anstyle-query v1.1.5
+[1m[92m   Compiling[0m anstream v1.0.0
+[1m[92m   Compiling[0m jiff v0.2.35
+[1m[92m   Compiling[0m zbus v5.19.0
+[1m[92m   Compiling[0m x11rb v0.13.2
+[1m[92m   Compiling[0m libwayshot-xcap v0.3.3
+[1m[92m   Compiling[0m tokio v1.53.1
+[1m[92m   Compiling[0m wl-clipboard-rs v0.9.3
+[1m[92m   Compiling[0m serialize-to-javascript v0.1.2
+[1m[92m   Compiling[0m pipewire v0.10.1
+[1m[92m   Compiling[0m muda v0.19.3
+[1m[92m   Compiling[0m rand v0.10.2
+[1m[92m   Compiling[0m tauri-macros v2.6.3
+[1m[92m   Compiling[0m pluto v1.0.0 (/home/runner/work/pluto/pluto/src-tauri)
+[1m[92m   Compiling[0m env_filter v2.0.0
+[1m[92m   Compiling[0m mime v0.3.17
+[1m[92m   Compiling[0m env_home v0.1.0
+[1m[92m   Compiling[0m which v7.0.3
+[1m[92m   Compiling[0m env_logger v0.11.11
+[1m[92m   Compiling[0m arboard v3.6.1
+[1m[92m   Compiling[0m sysinfo v0.35.2
 [1m[33mwarning[0m[1m: unused variable: `text`[0m
    [1m[94m--> [0msrc/nlu.rs:618:18
     [1m[94m|[0m
@@ -595,42 +636,6 @@ EXIT=101
 [1m[94m51[0m [1m[94m|[0m                 Ok((code, _, err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
    [1m[94m|[0m                              [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_err`[0m
 
-[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
-   [1m[94m--> [0msrc/tools/system.rs:139:15
-    [1m[94m|[0m
-[1m[94m139[0m [1m[94m|[0m         match capture_x11(&path, &area) {
-    [1m[94m|[0m               [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
-   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
-   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: not covered
-    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
-[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
-    [1m[94m|[0m
-[1m[94m144[0m [92m~ [0m            }[92m,[0m
-[1m[94m145[0m [92m+             Ok(false) => todo!()[0m
-    [1m[94m|[0m
-
-[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
-   [1m[94m--> [0msrc/tools/system.rs:149:19
-    [1m[94m|[0m
-[1m[94m149[0m [1m[94m|[0m             match result {
-    [1m[94m|[0m                   [1m[91m^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
-    [1m[94m|[0m
-[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
-   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
-   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
-    [1m[94m|[0m
-    [1m[94m= [0m[1mnote[0m: not covered
-    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
-[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
-    [1m[94m|[0m
-[1m[94m151[0m [92m~ [0m                Err(e) => return ToolResult::fail("take_screenshot", e)[92m,[0m
-[1m[94m152[0m [92m~                 Ok(false) => todo!()[0m,
-    [1m[94m|[0m
-
 [1m[33mwarning[0m[1m: unused variable: `err`[0m
    [1m[94m--> [0msrc/tools/system.rs:216:30
     [1m[94m|[0m
@@ -648,56 +653,51 @@ EXIT=101
     [1m[94m|[0m
     [1m[94m= [0m[1mnote[0m: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
 
-[1m[91merror[E0716][0m[1m: temporary value dropped while borrowed[0m
-   [1m[94m--> [0msrc/tools/voice.rs:157:9
-    [1m[94m|[0m
-[1m[94m157[0m [1m[94m|[0m         txt_path.with_extension("").to_str().unwrap_or(""),
-    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mcreates a temporary value which is freed while still in use[0m
-[1m[94m158[0m [1m[94m|[0m     ];
-    [1m[94m|[0m      [1m[94m-[0m [1m[94mtemporary value is freed at the end of this statement[0m
-[1m[94m159[0m [1m[94m|[0m     match run_process(&program, &args, 60_000, &[]) {
-    [1m[94m|[0m                                 [1m[94m-----[0m [1m[94mborrow later used here[0m
-    [1m[94m|[0m
-[1m[96mhelp[0m: consider using a `let` binding to create a longer lived value
-    [1m[94m|[0m
-[1m[94m150[0m [92m~ [0m    [92mlet binding = txt_path.with_extension("");[0m
-[1m[94m151[0m [92m~     [0mlet args = [
-[1m[94m152[0m [1m[94m|[0m         "-m",
-[1m[94m...[0m
-[1m[94m157[0m [1m[94m|[0m         "-of",
-[1m[94m158[0m [92m~ [0m        [92mbinding[0m.to_str().unwrap_or(""),
-    [1m[94m|[0m
-
-[1m[91merror[E0382][0m[1m: use of moved value: `message`[0m
-  [1m[94m--> [0msrc/tools/mod.rs:26:75
-   [1m[94m|[0m
-[1m[94m25[0m [1m[94m|[0m [1m[94m...[0mol: &str, message: impl Into<String>) -> Self {
-   [1m[94m|[0m              [1m[94m-------[0m [1m[94mmove occurs because `message` has type `impl Into<String>`, which does not implement the `Copy` trait[0m
-[1m[94m26[0m [1m[94m|[0m [1m[94m...[0m { success: false, message: message.into(), error: Some(message.into()), data: json!({ "tool": tool, "success": false }) }
-   [1m[94m|[0m                                        [1m[94m------[0m              [1m[91m^^^^^^^[0m [1m[91mvalue used here after move[0m
-   [1m[94m|[0m                                        [1m[94m|[0m
-   [1m[94m|[0m                                        [1m[94m`message` moved due to this method call[0m
-   [1m[94m|[0m
-[1m[92mnote[0m: `into` takes ownership of the receiver `self`, which moves `message`
-  [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/convert/mod.rs:456:12
-[1m[96mhelp[0m: consider restricting opaque type `impl Into<String>` with trait `Copy`
-   [1m[94m|[0m
-[1m[94m25[0m [1m[94m| [0m    pub fn fail(tool: &str, message: impl Into<String>[92m + std::marker::Copy[0m) -> Self {
-   [1m[94m|[0m                                                        [92m+++++++++++++++++++[0m
-
 [1m[33mwarning[0m[1m: value assigned to `status` is never read[0m
-   [1m[94m--> [0msrc/tools/mod.rs:131:22
+   [1m[94m--> [0msrc/tools/mod.rs:137:22
     [1m[94m|[0m
-[1m[94m131[0m [1m[94m|[0m     let mut status = None;
+[1m[94m137[0m [1m[94m|[0m     let mut status = None;
     [1m[94m|[0m                      [1m[33m^^^^[0m [1m[33mthis value is reassigned later and never used[0m
 [1m[94m...[0m
-[1m[94m135[0m [1m[94m|[0m                 status = Some(s);
+[1m[94m141[0m [1m[94m|[0m                 status = Some(s);
     [1m[94m|[0m                 [1m[94m----------------[0m [1m[94m`status` is overwritten here before the previous value is read[0m
 
-[1mSome errors have detailed explanations: E0004, E0061, E0277, E0308, E0382, E0428, E0599, E0716.[0m
-[1mFor more information about an error, try `rustc --explain E0004`.[0m
-[1m[33mwarning[0m: `pluto` (lib) generated 9 warnings
-[1m[91merror[0m: could not compile `pluto` (lib) due to 18 previous errors; 9 warnings emitted
+[1m[33mwarning[0m[1m: function `has_any_relaxed` is never used[0m
+   [1m[94m--> [0msrc/nlu.rs:225:4
+    [1m[94m|[0m
+[1m[94m225[0m [1m[94m|[0m fn has_any_relaxed(text: &str, subs: &[&str]) -> bool {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: function `site_from_url` is never used[0m
+   [1m[94m--> [0msrc/nlu.rs:343:4
+    [1m[94m|[0m
+[1m[94m343[0m [1m[94m|[0m fn site_from_url(url: &str) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: function `normalize_url` is never used[0m
+   [1m[94m--> [0msrc/nlu.rs:368:4
+    [1m[94m|[0m
+[1m[94m368[0m [1m[94m|[0m fn normalize_url(text: &str) -> String {
+    [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: constant `MAX_FIND_RESULTS` is never used[0m
+  [1m[94m--> [0msrc/tools/files.rs:11:7
+   [1m[94m|[0m
+[1m[94m11[0m [1m[94m|[0m const MAX_FIND_RESULTS: usize = 25;
+   [1m[94m|[0m       [1m[33m^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: linking with `cc` failed: exit status: 1[0m
+  [1m[94m|[0m
+  [1m[94m= [0m[1mnote[0m:  "cc" "-Wl,--version-script=/home/runner/work/pluto/pluto/src-tauri/target/release/deps/rustct06ISE/list" "-Wl,--no-undefined-version" "-m64" "/home/runner/work/pluto/pluto/src-tauri/target/release/deps/rustct06ISE/symbols.o" "<2 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/home/runner/work/pluto/pluto/src-tauri/target/release/deps/{libwhich-5e9b5288492a7093,libenv_home-acadb66709247939,libeither-0659f0afa699f48b,libarboard-107ed5a934c313fb,libwl_clipboard_rs-ec77fb78fac3cd75,libtree_magic_mini-a166e7a5a303658e,libpetgraph-7957df2834bcdbb4,libhashbrown-1fca352d47d2b717,libfoldhash-0d0f6b8616c32bc3,libfixedbitset-bc0edebfb888f2eb,libos_pipe-195807d90215966e,libx11rb-4f2a6575dee31737,libgethostname-f33194a5369dff64,libx11rb_protocol-e14a3482c51392db,libxcap-040397a934b138c1,librand-9cf321ed7012da9b,libchacha20-4f9b06204af9c86c,libcpufeatures-a49a701b99fcbf1b,liblibwayshot_xcap-1cb4b15878c8701e,libgl-cc49077f52cf8529,libkhronos_egl-d7632b5f911a3e31,libmemmap2-83e53c8d5bd7ff7b,libgbm-aee5de7c8c2d91e7,libdrm-42ab4e2efd782991,librustix-41871834f28fcd3f,liblinux_raw_sys-803a9aa50b3bd388,libwayland_server-c2c2e4d7e86e978c,libgbm_sys-9f6eef59d29cbe23,libdrm-edf4b64358e7a6f2,libdrm_ffi-313de20bf48d165d,libdrm_sys-2bc97c5538c2b14d,liblinux_raw_sys-ce049e9ec20ead42,libdrm_fourcc-c1913bbb0df18998,libwayland_protocols_wlr-cf682f0460599f44,libwayland_protocols-47a680ab05f0a9ca,libwayland_client-a9cd3ff84233df61,libwayland_backend-70d9926be09cbb6c,libdowncast_rs-c808955e5b376087,libscoped_tls-dde8114245e7498c,libwayland_sys-cda3aa04dd3c7f9c,libdlib-11f9f3e65fce53ed,liblibloading-d43f90003ccb0be5,libpipewire-cd15aa5829ff022e,libpipewire_sys-893db5baf0a18550,liblibspa-29ce7da94e3a700d,liblibspa_sys-82544029b12c4e1b,libcookie_factory-4adfbd3a1d86df7d,libnom-fa2ac846ea026d64,libzbus-8c00c823aeb5a7e0,libblocking-7cfac73715b0cb09,libpiper-71eecb6c274b3a03,libatomic_waker-4cc93774f0da698c,libhex-36fc24f330502f7c,libasync_executor-606ce34eb03992eb,libasync_process-7d36e255fa78dbdb,libasync_signal-aa98afddfe0ee845,libasync_lock-b7bb742df123c8bd,libasync_task-635b8dd7175fff08,libasync_channel-a72d52e8918e11c5,libordered_stream-841abcf286875f30,libtracing-42cb279205afb100,libtracing_core-62df0f17ae464f53,libasync_broadcast-7dd77dfa7d6c7577,libevent_listener_strategy-13fe48447a3d575d,libevent_listener-dc85de23bdd14ff2,libasync_io-1d9609703e7e5806,libpolling-39b6835966b39f1a,libconcurrent_queue-b6fcdc07276de1b9,librustix-b6785a695ccc094e,liblinux_raw_sys-35de0a82e12f8660,libfutures_lite-4a924f57ca313c3f,libparking-1a30bcc0fe2128fa,libfastrand-2cebafdb917a292f,libzbus_names-2d0f94ff2158110a,libzvariant-d127f91d3e9d0f13,libenumflags2-688ab5b9500f30ff,libendi-98e4b8b2deafd0ff,libzcheapstr-7844d6a54ca7427b,libzvariant_utils-df01afbe835349c7,libsyn-827ca00838c1407f,libquote-a879fc84b0dbdfed,libproc_macro2-46111b64b66ac765,libunicode_ident-703dc1d0a21133fb}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libproc_macro-*,librustc_literal_escaper-*}.rlib" "/home/runner/work/pluto/pluto/src-tauri/target/release/deps/{libxcb-5b6ca61af45dd972,libimage-82d82e7caa08a0b0,libbytemuck-38e3672d8e3f078a,libbyteorder_lite-5f5b795e7238ef07,libmoxcms-12079b0f0cc26d13,libpxfm-d2e2b06e67720043,libpng-c702b77abdc0d49a,libflate2-07613ec561752036,libminiz_oxide-f1562955d6429de4,libfdeflate-0c972b27810a0ea2,libsimd_adler32-2d6911748b751ad8,libcrc32fast-5027ea8fdbeb42b0,libnum_traits-bac020b5e694ccd2,libbase64-4e003914ecb14b8c,libsysinfo-121e42e10883abea,libtauri-405f152ee8bf7a0a,libmime-0fe2462ce4f9f57b,libgetrandom-43ab65d35fdd4c2f,libtauri_runtime_wry-b1635833d43db63e,libwry-3b66d9525b97b306,libdirs-7caae30a84921e3b,libdirs_sys-f67e7c20948eda87,liboption_ext-d547f2f0482e16b0,libgdkx11-c0e123b681cbdc94,libtao-fc15af5903f0fe8a,libgdk_x11_sys-76ee72a933e73c27,libx11-b8539023cf218ac9,libgdk_wayland_sys-8a588b2431efda1e,libparking_lot-e0e2d4a9879ff0de,libparking_lot_core-4c422e6a8fcd036a,liblock_api-742b21ad7253f7a9,libscopeguard-635401e05b6c64cd,libdlopen2-469a38ce44a54a9a,libdbus-343589b716977baf,liblibdbus_sys-ea817fb3f2aa12e0,libx11_dl-026e15d846f601a2,libmuda-234cce8493b879b8,libkeyboard_types-2eb38ebe5011ff99,libunicode_segmentation-099f9012907855a7,libcrossbeam_channel-9a6fcda1f6406a73,libcrossbeam_utils-358b5755b69e9dec,libtokio-3ec3d04e45a3a3f2,libsignal_hook_registry-1e7b8e156216ce96,liberrno-f087cee46d6d5069,libmio-00ada321efb3e76c,libtauri_runtime-dbeee0120f054494,libwebkit2gtk-adbf770691543286,libjavascriptcore-5dabd39d857f11c1,libsoup-42381abbbe803f96,libgtk-6e8e02d88b1f8cef,libfield_offset-91e4cbba4647505c,libmemoffset-bd554274159c87d5,libatk-78701cf72ab89fac,libgdk-19088cc8ebb90dd8,libpango-a5d99cf6488a2d59,libgdk_pixbuf-c76a550bbc4963f9,libcairo-5c2a01144c40ad7f,libgio-b276d19759b22580,libfutures_io-3205ad0c5f1e16f3,libglib-25fa27a0980a745b,libfutures_executor-9ebab39280eeafad,libfutures_util-d25cff757ed08e21,libslab-c3dbe028c0544661,libpin_project_lite-ff6072accf194c4d,libfutures_task-925703b60bdba267,libfutures_channel-e163cb55eda07819,libfutures_core-152d5afd7e8157d6,libonce_cell-9787da8d32d8c755,libbitflags-2c8d839a393267d0,libwebkit2gtk_sys-c06034ad1d91281b,libsoup3_sys-d354086a8ed9c297,libjavascriptcore_rs_sys-95d8decf96562a51,libgtk_sys-a338f6e53600530d,libatk_sys-068face35d270deb,libgdk_sys-0f6fca9e7b74821d,libpango_sys-85ceab306aa3bc88,libgdk_pixbuf_sys-c4b735e9352b0e15,libgio_sys-e5018dfa739b90f2,libcairo_sys-c6dd049f00583b5c,libgobject_sys-9dece9190d50be91,libglib_sys-1348534768f7be4a,libcookie-96b0f53ac19588bd,libdpi-9fab6c83b38c3232,libserialize_to_javascript-d161fbcecded25fb,libraw_window_handle-efb55897ad4d68b8,libtauri_utils-6de3870a5f56b05c,libdunce-1c631da09db81a30,libinfer-b382affc1cd44ace,libcfb-14ed182173265cdd,libfnv-4a3482746b1952f3,libbyteorder-5b52887faf41e4c0,libuuid-c9028c8c756424ac,libgetrandom-0d4a4cd796fa5cf3,liblibc-f9470fb236809959,librand_core-c26a329579fd9749,libcfg_if-6ab59ad8228a968b,libbrotli-c707474011848e19,libbrotli_decompressor-4f587e7f901f7587,liballoc_stdlib-20fb8a08fb8e9ec0,liballoc_no_stdlib-de473c90cde6f000,liburlpattern-cd515193c0b1b846,libunic_ucd_ident-958b70b0cd3a20b0,libunic_ucd_version-1776b0c31f0123e5,libunic_common-0446f28999a4bd7b,libunic_char_property-ec870c5b3e964a05,libunic_char_range-33bc95d9720bcbfd,libregex-574be1e45039bddf,libregex_automata-74512b0c100d7508,libaho_corasick-ac478d7a1a6146ba,libregex_syntax-97d99bf839dbde5f,libglob-3e5a569dbbb8c9c4,liblog-8c55ecba80abbce9,libwalkdir-8cfed8f69625a764,libsame_file-953eea3b27a9b903,libctor-42cd4145d23a443b,libplist-9661dcfa24dca42a,libtime-d5378396274b77a3,libpowerfmt-528993c99581a0a5,libnum_conv-12f2237d53bc061c,libderanged-f427d3682a57f072,libtime_core-4976d99402c4a8e7,libquick_xml-3208414f9aad2791,libbase64-e454487d51074e4d,libindexmap-149d1059ef1cc0d8,libequivalent-1dee88bd450c425f,libhashbrown-b768d00c625b6a9e,libjson_patch-b4b25d4e5ae02a38,libthiserror-43a1cbac63a6b4ed,libjsonptr-e3b86f0634e15ae0,libserde_with-7657581a92b70da1,libhttp-33aab1bcb257994b,libbytes-ea88a761a3e93ef2,libphf-36a0bc50b40a0b3a,libphf_shared-fcbc439cfc3e8ecf,libsiphasher-8fb03fff8df17558,libtoml-0f9a58ff6e9f4e99,libtoml_writer-e6cc50d640fc56db,libtoml_parser-b4444763b96c25a3,libwinnow-707ed3bed403fc2d,libserde_spanned-eb75acca0e56386a,libtoml_datetime-1e83483d176539fc,libserde_untagged-4686cc2c17d018bc,liberased_serde-9d4869c7660b5565,libtypeid-0931095e20308321,liburl-c9b9a502a2d9b962,libidna-b8b13b974f3504fe,libidna_adapter-a2139ca6736ee233,libicu_properties-fef771e367419a79,libicu_properties_data-06aaf33902059d17,libicu_normalizer-297258786d48bd6d,libsmallvec-affa2582429e1887,libicu_normalizer_data-6fcacc9b0831b22a,libicu_collections-416008b1b34aecab,libutf8_iter-331885c4bf3b7347,libpotential_utf-b9af254f589f1157,libicu_provider-9e9197576c676c14,libicu_locale_core-c84c192b4c7ae849,libtinystr-ef678f4287a02c3b,liblitemap-cc6761b50a129f76,libwriteable-735c377600762068,libzerovec-4f7729a5a3ff699d,libzerotrie-e3a5456dc00ee542,libyoke-be50fda9e4a134f5,libstable_deref_trait-de4cd5bd928f396c,libzerofrom-e68749eed770f0f6,libform_urlencoded-54d1ec649fd6cbc1,libpercent_encoding-baaf95cb6903a6d2,libthiserror-4ef239222ab0e34d,libanyhow-7096a25d3dd2c373,libserde-f6dc9f44011da9bf,libsemver-b3909c7581623116,libserde_json-56373f36946c1d4c,libmemchr-8a576b372550f320,libitoa-c262ee3d77f38abb,libzmij-c2973d6d7266eeaf,libserde_core-a0ecf502c77e53ae}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lEGL" "-lgbm" "-lwayland-client" "-lwayland-server" "-ldl" "-lpipewire-0.3" "-lpipewire-0.3" "-lxcb" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-lgdk_pixbuf-2.0" "-lcairo-gobject" "-lcairo" "-lgobject-2.0" "-lglib-2.0" "-ldbus-1" "-ldl" "-lgobject-2.0" "-lwebkit2gtk-4.1" "-lgtk-3" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-latk-1.0" "-lcairo-gobject" "-lcairo" "-lgdk_pixbuf-2.0" "-lsoup-3.0" "-lgmodule-2.0" "-lgio-2.0" "-ljavascriptcoregtk-4.1" "-lgobject-2.0" "-lglib-2.0" "-lsoup-3.0" "-lgmodule-2.0" "-lgio-2.0" "-lgobject-2.0" "-lglib-2.0" "-ljavascriptcoregtk-4.1" "-lgobject-2.0" "-lglib-2.0" "-lgtk-3" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-latk-1.0" "-lcairo-gobject" "-lcairo" "-lgdk_pixbuf-2.0" "-lgio-2.0" "-lgobject-2.0" "-lglib-2.0" "-latk-1.0" "-lgobject-2.0" "-lglib-2.0" "-lgdk-3" "-lz" "-lpangocairo-1.0" "-lpango-1.0" "-lharfbuzz" "-lgdk_pixbuf-2.0" "-lcairo-gobject" "-lcairo" "-lgobject-2.0" "-lglib-2.0" "-lpango-1.0" "-lgobject-2.0" "-lglib-2.0" "-lharfbuzz" "-lgdk_pixbuf-2.0" "-lgobject-2.0" "-lglib-2.0" "-lgio-2.0" "-lgobject-2.0" "-lglib-2.0" "-lcairo-gobject" "-lcairo" "-lgobject-2.0" "-lglib-2.0" "-lgobject-2.0" "-lglib-2.0" "-lgobject-2.0" "-lglib-2.0" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/home/runner/work/pluto/pluto/src-tauri/target/release/deps/rustct06ISE/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/home/runner/work/pluto/pluto/src-tauri/target/release/build/libspa-e5faebab402df985/out" "-L" "/home/runner/work/pluto/pluto/src-tauri/target/release/build/libspa-sys-b0e1aae6040f1829/out" "-L" "/usr/lib/x86_64-linux-gnu" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/home/runner/work/pluto/pluto/src-tauri/target/release/deps/libpluto_lib.so" "-Wl,--gc-sections" "-shared" "-Wl,-z,relro,-z,now" "-Wl,-O1" "-Wl,--strip-all" "-nodefaultlibs"
+  [1m[94m= [0m[1mnote[0m: some arguments are omitted. use `--verbose` to show all linker arguments
+  [1m[94m= [0m[1mnote[0m: rust-lld: error: unable to find library -lgbm
+          collect2: error: ld returned 1 exit status
+          
+
+[1m[33mwarning[0m: `pluto` (lib) generated 11 warnings
+[1m[91merror[0m: could not compile `pluto` (lib) due to 1 previous error; 11 warnings emitted
 failed to build app: failed to build app
        Error failed to build app: failed to build app
 EXIT=1
