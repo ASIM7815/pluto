@@ -117,3 +117,12 @@ class ConfirmRequest(BaseModel):
     session_id: Optional[str] = None
     action: str
     approved: bool = True
+
+
+class CorrectionRequest(BaseModel):
+    """A user correction of an intent (feedback learning)."""
+    input: str
+    correct_intent: str
+    session_id: Optional[str] = None
+    predicted_intent: Optional[str] = None
+    retrain: bool = True

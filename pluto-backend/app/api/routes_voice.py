@@ -6,10 +6,19 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.core.logging import get_logger
-from app.voice.elevenlabs import elevenlabs_client
+from app.voice.local_tts import local_tts_client
 from app.voice.stt import stt_client
 
 logger = get_logger(__name__)
+
+
+def _locale_audio_mime() -> str:
+    """Best guess of the audio MIME our offline TTS emitted (WAV or MP3)."""
+    import shutil
+
+    if shutil.which("espeak-ng") or shutil.which("espeak"):
+        return "audio/wav"
+    return "audio/mpeg"
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
@@ -55,21 +64,23 @@ async def transcribe_audio(
 
 @router.post("/synthesize")
 async def synthesize_speech(request: TTSRequest):
-    """Convert text to speech (ElevenLabs when configured)."""
-    try:
-        audio_data = await elevenlabs_client.text_to_speech(
-            text=request.text,
-            voice_id=request.voice_id,
-        )
-        if not audio_data:
-            raise HTTPException(status_code=502, detail="TTS produced no audio")
+    """Convert text to speech using a *fully local* engine.
 
-        # Mock mode returns a silent WAV; real mode returns MP3 from ElevenLabs.
-        return Response(
-            content=audio_data,
-            media_type=elevenlabs_client.audio_mime,
-            headers={"Content-Disposition": "inline; filename=speech.audio"},
-        )
+    PLUTO never relies on an external AI/API for speech. Engine preference is
+    offline-first: espeak-ng or pyttsx3 (no network), then gTTS (network,
+    last resort). When no engine produced audio we return 502 so the
+    frontend falls back to the browser's own speechSynthesis.
+    """
+    try:
+        audio_data = await local_tts_client.text_to_speech(text=request.text)
+        if audio_data:
+            return Response(
+                content=audio_data,
+                media_type=_locale_audio_mime(),
+                headers={"Content-Disposition": "inline; filename=speech.audio"},
+            )
+        # No local engine usable -> let the browser speak instead.
+        raise HTTPException(status_code=502, detail="No local TTS engine available")
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -79,10 +90,17 @@ async def synthesize_speech(request: TTSRequest):
 
 @router.get("/voices")
 async def get_voices():
-    """Get available voices."""
-    try:
-        voices = await elevenlabs_client.get_voices()
-        return {"voices": voices, "engine": elevenlabs_client.engine}
-    except Exception as e:  # noqa: BLE001
-        logger.error("voices_error", error=str(e))
-        return {"voices": [], "engine": "browser"}
+    """Report the local TTS voices/engines available (PLUTO never uses external APIs)."""
+    engines = []
+    if local_tts_client.espeak:
+        engines.append({"id": "espeak", "name": "espeak-ng (offline)"})
+    if local_tts_client.pyttsx3:
+        engines.append({"id": "pyttsx3", "name": "pyttsx3 (offline)"})
+    if local_tts_client.gtts:
+        engines.append({"id": "gtts", "name": "gTTS (network fallback)"})
+    return {
+        "voices": [],
+        "engines": engines,
+        "preferred": local_tts_client._preferred,
+        "engine": "local",
+    }

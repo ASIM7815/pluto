@@ -1,32 +1,28 @@
 #!/bin/bash
-# PLUTO Backend Startup Script
+# PLUTO Backend Startup Script (Linux/macOS)
+# Runs the fully-local backend - no external AI/API, no API key required.
+set -e
 
 echo "🚀 Starting PLUTO Backend..."
 
-# Check if virtual environment exists
 if [ ! -d "venv" ]; then
     echo "📦 Creating virtual environment..."
     python3 -m venv venv
 fi
 
-# Activate virtual environment
 source venv/bin/activate
 
-# Check if requirements are installed
 if [ ! -f "venv/installed" ]; then
     echo "📥 Installing dependencies..."
     pip install -r requirements.txt
     touch venv/installed
 fi
 
-# Check if .env exists
+# .env is optional in local mode (defaults are fully offline).
 if [ ! -f ".env" ]; then
-    echo "⚠️  Warning: .env file not found. Copying from .env.example..."
-    cp .env.example .env
-    echo "⚙️  Please edit .env and add your API keys!"
-    exit 1
+    echo "ℹ️  No .env found - using fully-local defaults (no API keys needed)."
 fi
 
-# Start FastAPI backend
-echo "✅ Starting PLUTO Agent on http://127.0.0.1:8765"
-python -m app.main
+# Optional: pass --preview to expose on 0.0.0.0 (container/network preview).
+echo "✅ Starting PLUTO Agent (local-intelligence, NO external AI/API)"
+exec python run.py "$@"

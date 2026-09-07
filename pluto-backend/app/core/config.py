@@ -1,5 +1,5 @@
 """Configuration management for PLUTO backend."""
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 import os
 
@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     pluto_auto_approve_safe: bool = True
     pluto_require_confirmation_dangerous: bool = True
 
+    # ---- Memory / persistence ----
+    # Persist context & actions to the local SQLite store (~/.pluto) so PLUTO
+    # survives restarts and can learn from corrections. Set false for a
+    # strictly stateless session.
+    pluto_persist_context: bool = True
+
     def model_post_init(self, __context) -> None:  # noqa: D105
         # Derive mock mode from absence of real credentials.
         self.pluto_llm_mock_mode = not bool(self.gpt_oss_api_key)
@@ -107,10 +113,11 @@ class Settings(BaseSettings):
                    "Music", "Videos", "Projects", "Templates", "Public"]
         return [os.path.join(home, f) if f else home for f in folders]
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 # Global settings instance

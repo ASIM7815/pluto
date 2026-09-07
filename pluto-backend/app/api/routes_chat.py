@@ -37,6 +37,7 @@ from app.schemas.chat import (
     CommandRequest,
     CommandResponse,
     ConfirmRequest,
+    CorrectionRequest,
 )
 
 logger = get_logger(__name__)
@@ -107,6 +108,49 @@ async def confirm_action(request: ConfirmRequest) -> dict:
                 "approved": request.approved, "session_id": session.id}
     return {"message": "No action is waiting for confirmation.",
             "approved": False, "session_id": session.id}
+
+
+@router.post("/correct")
+async def correct_intent(request: CorrectionRequest) -> dict:
+    """Record a user correction of an intent and (optionally) re-train locally.
+
+    This is PLUTO's feedback-learning hook: when PLUTO gets an intent wrong, the
+    user corrects it and the local model improves without any external AI.
+    """
+    from app.intelligence.brain import get_brain
+
+    input_text = (request.input or "").strip()
+    correct = (request.correct_intent or "").strip()
+    if not input_text or not correct:
+        return {"success": False, "message": "Both 'input' and 'correct_intent' are required."}
+
+    brain = get_brain()
+    try:
+        brain.record_correction(
+            input_text=input_text,
+            correct_intent=correct,
+            session_id=request.session_id,
+            predicted_intent=request.predicted_intent,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("correction_record_error", error=str(e))
+        return {"success": False, "message": f"Failed to record correction: {e}"}
+
+    retrained = False
+    if request.retrain:
+        try:
+            brain.train_and_evaluate()
+            retrained = True
+        except Exception as e:  # noqa: BLE001
+            logger.error("correction_retrain_error", error=str(e))
+
+    return {
+        "success": True,
+        "message": "Correction recorded." + (" Model re-trained." if retrained else ""),
+        "retrained": retrained,
+        "predicted_intent": request.predicted_intent,
+        "correct_intent": correct,
+    }
 
 
 @router.post("/reset")

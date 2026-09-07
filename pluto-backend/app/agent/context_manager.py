@@ -90,6 +90,39 @@ class SessionContext:
                 self.metadata[key] = value
         self.last_activity = datetime.now()
 
+    def to_snapshot_dict(self) -> Dict[str, Any]:
+        """A JSON-serializable snapshot of the whole context (for persistence)."""
+        return {
+            "session_id": self.session_id,
+            "current_app": self.current_app,
+            "running_apps": self.running_apps,
+            "active_window": self.active_window,
+            "current_browser": self.current_browser,
+            "current_url": self.current_url,
+            "current_page_title": self.current_page_title,
+            "current_page_type": self.current_page_type,
+            "visible_elements": self.visible_elements,
+            "last_search_query": self.last_search_query,
+            "search_results": self.search_results,
+            "selected_result_index": self.selected_result_index,
+            "recent_actions": [
+                {
+                    "tool": a.tool, "parameters": a.parameters, "result": a.result,
+                    "success": a.success, "timestamp": a.timestamp.isoformat(),
+                    "metadata": a.metadata,
+                }
+                for a in self.recent_actions
+            ],
+            "previous_command": self.previous_command,
+            "current_task": self.current_task,
+            "task_steps_completed": self.task_steps_completed,
+            "current_directory": self.current_directory,
+            "recent_files": self.recent_files,
+            "created_at": self.created_at.isoformat(),
+            "last_activity": self.last_activity.isoformat(),
+            "metadata": self.metadata,
+        }
+
     def summarize(self) -> str:
         """Human-readable context summary injected into the LLM system prompt."""
         parts: List[str] = []
@@ -144,6 +177,39 @@ class ContextManager:
         logger.info("context_created", session=session_id)
         return context
 
+    # ------------------------------------------------------------------
+    # Durable context persistence (best-effort, local SQLite)
+    # ------------------------------------------------------------------
+    def _persist_context(self, session_id: str) -> None:
+        if not settings.pluto_persist_context:
+            return
+        context = self.contexts.get(session_id)
+        if context is None:
+            return
+        try:
+            from app.intelligence.memory import get_memory
+
+            get_memory().save_context(session_id, self.to_snapshot_dict(context))
+        except Exception as e:  # noqa: BLE001 - persistence must never break a task
+            logger.debug("context_persist_error", error=str(e))
+
+    def _restore_context(self, session_id: str) -> Optional[SessionContext]:
+        if not settings.pluto_persist_context:
+            return None
+        try:
+            from app.intelligence.memory import get_memory
+
+            snapshot = get_memory().load_context(session_id)
+        except Exception:  # noqa: BLE001
+            snapshot = None
+        if not snapshot:
+            return None
+        context = SessionContext(session_id=session_id)
+        context.update(snapshot)
+        self.contexts[session_id] = context
+        logger.info("context_restored", session=session_id, keys=list(snapshot.keys()))
+        return context
+
     def get_context(self, session_id: str) -> Optional[SessionContext]:
         """Return the session context, or None (also drops expired contexts)."""
         context = self.contexts.get(session_id)
@@ -156,7 +222,10 @@ class ContextManager:
     def get_or_create_context(self, session_id: str) -> SessionContext:
         context = self.get_context(session_id)
         if context is None:
-            context = self.create_context(session_id)
+            # Restore durable context from the local SQLite store if configured.
+            context = self._restore_context(session_id)
+            if context is None:
+                context = self.create_context(session_id)
         return context
 
     def has_context(self, session_id: str) -> bool:
@@ -166,6 +235,13 @@ class ContextManager:
         if session_id in self.contexts:
             del self.contexts[session_id]
             logger.info("context_cleared", session=session_id)
+        if settings.pluto_persist_context:
+            try:
+                from app.intelligence.memory import get_memory
+
+                get_memory().delete_context(session_id)
+            except Exception:  # noqa: BLE001 - persistence is best-effort
+                logger.debug("context_persist_delete_skipped")
 
     def reset(self, session_id: str) -> None:
         """Alias for clear_context (kept for API parity)."""
@@ -208,6 +284,7 @@ class ContextManager:
             context.recent_actions = context.recent_actions[-MAX_RECENT_ACTIONS:]
         context.last_activity = datetime.now()
         logger.debug("action_added", session=session_id, tool=tool, success=success)
+        self._persist_context(session_id)
         return action
 
     def record_action(
@@ -274,6 +351,7 @@ class ContextManager:
         context.current_task = None
         context.task_steps_completed = 0
         context.last_activity = datetime.now()
+        self._persist_context(session_id)
 
     # ------------------------------------------------------------------
     # Summary / stats / cleanup
