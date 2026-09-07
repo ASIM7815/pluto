@@ -1,0 +1,16 @@
+name: ping
+on: push
+jobs:
+  ping:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          rustc --version
+          cargo --version
+          node --version
+          echo "ok" > ping-result.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ping-result
+          path: ping-result.txt
