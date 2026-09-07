@@ -61,9 +61,11 @@ python3-pip
 python3-gi
 gir1.2-gtk-3.0
 libgtk-3-0
-libwebkit2gtk-4.0-37
+libwebkit2gtk-4.1-0    # Ubuntu 24.04 compatible
 libgl1
 ```
+
+**Note**: Ubuntu 24.04 uses `libwebkit2gtk-4.1-0`. The package is configured correctly for this version.
 
 ---
 
