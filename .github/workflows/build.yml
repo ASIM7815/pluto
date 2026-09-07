@@ -59,12 +59,44 @@ jobs:
         run: npm run build
 
       - name: Rust unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+        run: |
+          mkdir -p /tmp/pluto-ci
+          set +e
+          cargo test --manifest-path src-tauri/Cargo.toml --lib 2>&1 | tee /tmp/pluto-ci/rust-test.log
+          echo "EXIT=${PIPESTATUS[0]}" | tee -a /tmp/pluto-ci/rust-test.log
+          echo "${PIPESTATUS[0]}" > /tmp/pluto-ci/cargo-test-status
+          exit 0
 
       - name: Build Tauri app and Debian package
-        run: npm run build:deb
+        run: |
+          set +e
+          npm run build:deb 2>&1 | tee /tmp/pluto-ci/tauri-build.log
+          echo "EXIT=${PIPESTATUS[0]}" | tee -a /tmp/pluto-ci/tauri-build.log
+          echo "${PIPESTATUS[0]}" > /tmp/pluto-ci/tauri-build-status
+          exit 0
+
+      - name: Publish CI diagnostics on failure
+        if: failure() || !cancelled()
+        run: |
+          git config user.name "pluto-build"
+          git config user.email "pluto-build@users.noreply.github.com"
+          {
+            echo "===== cargo test ====="
+            cat /tmp/pluto-ci/rust-test.log 2>/dev/null | tail -n 300
+            echo ""
+            echo "===== tauri build ====="
+            cat /tmp/pluto-ci/tauri-build.log 2>/dev/null | tail -n 400
+          } > build-errors.txt
+          git add -f build-errors.txt
+          git commit -m "ci: rust build diagnostics" || true
+          git push origin HEAD:${{ github.ref_name }} || true
+          echo "Cargo test status: $(cat /tmp/pluto-ci/cargo-test-status 2>/dev/null)"
+          echo "Tauri build status: $(cat /tmp/pluto-ci/tauri-build-status 2>/dev/null)"
+          echo "FAILING"
+          exit 1
 
       - name: Copy / rename .deb artifact
+        if: success()
         run: |
           mkdir -p dist
           DEB=$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -n 1)
@@ -76,6 +108,7 @@ jobs:
           ls -lh dist/
 
       - name: Smoke test GUI under Xvfb
+        if: success()
         run: |
           set -e
           APP=./src-tauri/target/release/pluto
@@ -97,16 +130,19 @@ jobs:
           ' _ "$APP"
 
       - name: Rust smoke tests (clipboard + screenshot under Xvfb)
+        if: success()
         run: |
           xvfb-run -a -s "-screen 0 1280x900x24" bash -c 'cargo test --manifest-path src-tauri/Cargo.toml --test smoke -- --ignored --nocapture'
 
       - name: Upload build artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pluto-deb
           path: dist/Pluto_1.0.0_amd64.deb
 
       - name: Publish .deb back to the repo
+        if: success()
         run: |
           git config user.name "pluto-build"
           git config user.email "pluto-build@users.noreply.github.com"
