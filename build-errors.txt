@@ -1,662 +1,703 @@
 ===== cargo test =====
-[1m[92m   Compiling[0m hashbrown v0.17.1
-[1m[92m   Compiling[0m indexmap v2.14.2
-[1m[92m   Compiling[0m heck v0.5.0
-[1m[92m   Compiling[0m memchr v2.8.3
-[1m[92m   Compiling[0m version-compare v0.2.1
-[1m[92m   Compiling[0m cfg-if v1.0.4
-[1m[92m   Compiling[0m winnow v0.5.40
-[1m[92m   Compiling[0m target-lexicon v0.12.16
-[1m[92m   Compiling[0m bitflags v2.13.1
-[1m[92m   Compiling[0m cfg-expr v0.15.8
-[1m[92m   Compiling[0m synstructure v0.13.2
-[1m[92m   Compiling[0m autocfg v1.5.1
-[1m[92m   Compiling[0m winnow v1.0.4
-[1m[92m   Compiling[0m version_check v0.9.5
-[1m[92m   Compiling[0m pin-project-lite v0.2.17
-[1m[92m   Compiling[0m serde_derive v1.0.229
-[1m[92m   Compiling[0m zerovec-derive v0.11.6
-[1m[92m   Compiling[0m zerofrom-derive v0.1.7
-[1m[92m   Compiling[0m yoke-derive v0.8.2
-[1m[92m   Compiling[0m displaydoc v0.2.7
-[1m[92m   Compiling[0m zerofrom v0.1.8
-[1m[92m   Compiling[0m toml_parser v1.1.3+spec-1.1.0
-[1m[92m   Compiling[0m toml_datetime v1.1.1+spec-1.1.0
-[1m[92m   Compiling[0m futures-core v0.3.34
-[1m[92m   Compiling[0m siphasher v1.0.3
-[1m[92m   Compiling[0m thiserror v1.0.69
-[1m[92m   Compiling[0m litemap v0.8.3
-[1m[92m   Compiling[0m writeable v0.6.4
-[1m[92m   Compiling[0m thiserror-impl v1.0.69
-[1m[92m   Compiling[0m find-msvc-tools v0.1.12
-[1m[92m   Compiling[0m shlex v2.0.1
-[1m[92m   Compiling[0m toml_writer v1.1.2+spec-1.1.0
-[1m[92m   Compiling[0m cc v1.4.5
-[1m[92m   Compiling[0m phf_shared v0.13.1
-[1m[92m   Compiling[0m aho-corasick v1.1.5
-[1m[92m   Compiling[0m regex-syntax v0.8.11
-[1m[92m   Compiling[0m toml_datetime v0.6.3
-[1m[92m   Compiling[0m serde_spanned v0.6.9
-[1m[92m   Compiling[0m utf8_iter v1.0.4
-[1m[92m   Compiling[0m toml_edit v0.20.2
-[1m[92m   Compiling[0m fastrand v2.5.0
-[1m[92m   Compiling[0m phf_generator v0.13.1
-[1m[92m   Compiling[0m icu_normalizer_data v2.3.0
-[1m[92m   Compiling[0m icu_properties_data v2.3.0
-[1m[92m   Compiling[0m stable_deref_trait v1.2.1
-[1m[92m   Compiling[0m once_cell v1.21.4
-[1m[92m   Compiling[0m glob v0.3.4
-[1m[92m   Compiling[0m regex-automata v0.4.18
-[1m[92m   Compiling[0m serde_spanned v1.1.1
-[1m[92m   Compiling[0m itoa v1.0.18
-[1m[92m   Compiling[0m slab v0.4.12
-[1m[92m   Compiling[0m toml v0.8.2
-[1m[92m   Compiling[0m system-deps v6.2.2
-[1m[92m   Compiling[0m rustix v1.1.4
-[1m[92m   Compiling[0m linux-raw-sys v0.12.1
-[1m[92m   Compiling[0m glib-sys v0.18.1
-[1m[92m   Compiling[0m gobject-sys v0.18.0
-[1m[92m   Compiling[0m regex v1.13.1
-[1m[92m   Compiling[0m gio-sys v0.18.1
-[1m[92m   Compiling[0m toml v1.1.5+spec-1.1.0
-[1m[92m   Compiling[0m yoke v0.8.3
-[1m[92m   Compiling[0m proc-macro-error-attr v1.0.4
-[1m[92m   Compiling[0m libloading v0.8.9
-[1m[92m   Compiling[0m semver v1.0.28
-[1m[92m   Compiling[0m zmij v1.0.23
-[1m[92m   Compiling[0m futures-io v0.3.34
-[1m[92m   Compiling[0m syn v1.0.109
-[1m[92m   Compiling[0m proc-macro-error v1.0.4
-[1m[92m   Compiling[0m memoffset v0.9.1
-[1m[92m   Compiling[0m rustc-hash v2.1.3
-[1m[92m   Compiling[0m parking_lot_core v0.9.12
-[1m[92m   Compiling[0m zerovec v0.11.8
-[1m[92m   Compiling[0m gdk-sys v0.18.2
-[1m[92m   Compiling[0m thiserror v2.0.20
-[1m[92m   Compiling[0m phf_macros v0.13.1
-[1m[92m   Compiling[0m futures-macro v0.3.34
-[1m[92m   Compiling[0m thiserror-impl v2.0.20
-[1m[92m   Compiling[0m futures-task v0.3.34
-[1m[92m   Compiling[0m futures-util v0.3.34
-[1m[92m   Compiling[0m proc-macro-crate v2.0.2
-[1m[92m   Compiling[0m heck v0.4.1
-[1m[92m   Compiling[0m num-conv v0.2.2
-[1m[92m   Compiling[0m log v0.4.34
-[1m[92m   Compiling[0m time-core v0.1.9
-[1m[92m   Compiling[0m glib-macros v0.18.5
-[1m[92m   Compiling[0m tinystr v0.8.4
-[1m[92m   Compiling[0m rustc_version v0.4.1
-[1m[92m   Compiling[0m gdk-pixbuf-sys v0.18.0
-[1m[92m   Compiling[0m pango-sys v0.18.0
-[1m[92m   Compiling[0m cairo-sys-rs v0.18.2
-[1m[92m   Compiling[0m phf_codegen v0.13.1
-[1m[92m   Compiling[0m futures-channel v0.3.34
-[1m[92m   Compiling[0m futures-executor v0.3.34
-[1m[92m   Compiling[0m typeid v1.0.3
-[1m[92m   Compiling[0m deranged v0.5.8
-[1m[92m   Compiling[0m ident_case v1.0.1
-[1m[92m   Compiling[0m powerfmt v0.2.0
-[1m[92m   Compiling[0m strsim v0.11.1
-[1m[92m   Compiling[0m darling_core v0.24.1
-[1m[92m   Compiling[0m icu_locale_core v2.3.0
-[1m[92m   Compiling[0m glib v0.18.5
-[1m[92m   Compiling[0m potential_utf v0.1.6
-[1m[92m   Compiling[0m zerotrie v0.2.5
-[1m[92m   Compiling[0m atk-sys v0.18.2
-[1m[92m   Compiling[0m erased-serde v0.4.10
-[1m[92m   Compiling[0m byteorder v1.5.0
-[1m[92m   Compiling[0m icu_provider v2.3.1
-[1m[92m   Compiling[0m icu_collections v2.3.0
-[1m[92m   Compiling[0m crossbeam-utils v0.8.23
-[1m[92m   Compiling[0m unic-char-range v0.9.0
-[1m[92m   Compiling[0m unic-common v0.9.0
-[1m[92m   Compiling[0m new_debug_unreachable v1.0.6
-[1m[92m   Compiling[0m scopeguard v1.2.0
-[1m[92m   Compiling[0m fnv v1.0.7
-[1m[92m   Compiling[0m lock_api v0.4.14
-[1m[92m   Compiling[0m unic-ucd-version v0.9.0
-[1m[92m   Compiling[0m unic-char-property v0.9.0
-[1m[92m   Compiling[0m phf v0.13.1
-[1m[92m   Compiling[0m string_cache_codegen v0.6.1
-[1m[92m   Compiling[0m serde_json v1.0.151
-[1m[92m   Compiling[0m target-lexicon v0.13.5
-[1m[92m   Compiling[0m darling_macro v0.24.1
-[1m[92m   Compiling[0m gio v0.18.4
-[1m[92m   Compiling[0m bytes v1.12.1
-[1m[92m   Compiling[0m darling v0.24.1
-[1m[92m   Compiling[0m getrandom v0.4.3
-[1m[92m   Compiling[0m precomputed-hash v0.1.1
-[1m[92m   Compiling[0m alloc-no-stdlib v2.0.4
-[1m[92m   Compiling[0m serde_with_macros v3.23.0
-[1m[92m   Compiling[0m alloc-stdlib v0.2.4
-[1m[92m   Compiling[0m web_atoms v0.2.6
-[1m[92m   Compiling[0m parking_lot v0.12.5
-[1m[92m   Compiling[0m unic-ucd-ident v0.9.0
-[1m[92m   Compiling[0m icu_normalizer v2.3.0
-[1m[92m   Compiling[0m icu_properties v2.3.0
-[1m[92m   Compiling[0m gtk-sys v0.18.2
-[1m[92m   Compiling[0m clang-sys v1.9.1
-[1m[92m   Compiling[0m quick-xml v0.42.0
-[1m[92m   Compiling[0m base64 v0.23.1
-[1m[92m   Compiling[0m anyhow v1.0.104
-[1m[92m   Compiling[0m anstyle v1.0.14
-[1m[92m   Compiling[0m idna_adapter v1.2.2
-[1m[92m   Compiling[0m string_cache v0.9.0
-[1m[92m   Compiling[0m http v1.5.0
-[1m[92m   Compiling[0m brotli-decompressor v5.0.3
-[1m[92m   Compiling[0m quick-xml v0.41.0
-[1m[92m   Compiling[0m dtoa v1.0.11
-[1m[92m   Compiling[0m dunce v1.0.5
-[1m[92m   Compiling[0m percent-encoding v2.3.2
-[1m[92m   Compiling[0m ctor-proc-macro v0.0.7
-[1m[92m   Compiling[0m parking v2.2.1
-[1m[92m   Compiling[0m simd-adler32 v0.3.10
-[1m[92m   Compiling[0m same-file v1.0.6
-[1m[92m   Compiling[0m minimal-lexical v0.2.1
-[1m[92m   Compiling[0m walkdir v2.5.0
-[1m[92m   Compiling[0m nom v7.1.3
-[1m[92m   Compiling[0m ctor v0.8.0
-[1m[92m   Compiling[0m form_urlencoded v1.2.2
-[1m[92m   Compiling[0m dtoa-short v0.3.5
-[1m[92m   Compiling[0m uuid v1.26.0
-[1m[92m   Compiling[0m brotli v8.0.4
-[1m[92m   Compiling[0m cfg-expr v0.20.9
-[1m[92m   Compiling[0m idna v1.1.0
-[1m[92m   Compiling[0m tendril v0.5.1
-[1m[92m   Compiling[0m selectors v0.36.1
-[1m[92m   Compiling[0m derive_more-impl v2.1.1
-[1m[92m   Compiling[0m cssparser-macros v0.6.1
-[1m[92m   Compiling[0m indexmap v1.9.3
-[1m[92m   Compiling[0m wayland-sys v0.31.11
-[1m[92m   Compiling[0m camino v1.2.5
-[1m[92m   Compiling[0m bindgen v0.72.1
-[1m[92m   Compiling[0m rand_core v0.10.1
-[1m[92m   Compiling[0m crc32fast v1.5.1
-[1m[92m   Compiling[0m unicode-width v0.2.2
-[1m[92m   Compiling[0m adler2 v2.0.1
-[1m[92m   Compiling[0m either v1.18.0
-[1m[92m   Compiling[0m annotate-snippets v0.11.5
-[1m[92m   Compiling[0m itertools v0.13.0
-[1m[92m   Compiling[0m derive_more v2.1.1
-[1m[92m   Compiling[0m cssparser v0.36.0
-[1m[92m   Compiling[0m markup5ever v0.38.0
-[1m[92m   Compiling[0m url v2.5.8
-[1m[92m   Compiling[0m cexpr v0.6.0
-[1m[92m   Compiling[0m system-deps v7.0.8
-[1m[92m   Compiling[0m dlib v0.5.3
-[1m[92m   Compiling[0m servo_arc v0.4.3
-[1m[92m   Compiling[0m wayland-backend v0.3.17
-[1m[92m   Compiling[0m serde_derive_internals v0.29.1
-[1m[92m   Compiling[0m hashbrown v0.12.3
-[1m[92m   Compiling[0m bitflags v1.3.2
-[1m[92m   Compiling[0m schemars v0.8.22
-[1m[92m   Compiling[0m shlex v1.3.0
-[1m[92m   Compiling[0m bit-vec v0.8.0
-[1m[92m   Compiling[0m schemars_derive v0.8.22
-[1m[92m   Compiling[0m bit-set v0.8.0
-[1m[92m   Compiling[0m html5ever v0.38.0
-[1m[92m   Compiling[0m gdk-pixbuf v0.18.5
-[1m[92m   Compiling[0m pango v0.18.3
-[1m[92m   Compiling[0m miniz_oxide v0.9.1
-[1m[92m   Compiling[0m cfb v0.7.3
-[1m[92m   Compiling[0m cairo-rs v0.18.5
-[1m[92m   Compiling[0m jsonptr v0.6.3
-[1m[92m   Compiling[0m time v0.3.55
-[1m[92m   Compiling[0m field-offset v0.3.6
-[1m[92m   Compiling[0m toml_edit v0.19.15
-[1m[92m   Compiling[0m cargo-platform v0.1.9
-[1m[92m   Compiling[0m foldhash v0.2.0
-[1m[92m   Compiling[0m scoped-tls v1.0.1
-[1m[92m   Compiling[0m downcast-rs v1.2.1
-[1m[92m   Compiling[0m dyn-clone v1.0.20
-[1m[92m   Compiling[0m option-ext v0.2.0
-[1m[92m   Compiling[0m dirs-sys v0.5.0
-[1m[92m   Compiling[0m plist v1.10.1
-[1m[92m   Compiling[0m proc-macro-crate v1.3.1
-[1m[92m   Compiling[0m dom_query v0.27.0
-[1m[92m   Compiling[0m cargo_metadata v0.19.2
-[1m[92m   Compiling[0m serde-untagged v0.1.9
-[1m[92m   Compiling[0m gdk v0.18.2
-[1m[92m   Compiling[0m json-patch v3.0.1
-[1m[92m   Compiling[0m infer v0.19.0
-[1m[92m   Compiling[0m flate2 v1.1.10
-[1m[92m   Compiling[0m urlpattern v0.3.0
-[1m[92m   Compiling[0m miniz_oxide v0.8.9
-[1m[92m   Compiling[0m wayland-scanner v0.31.11
-[1m[92m   Compiling[0m fdeflate v0.3.7
-[1m[92m   Compiling[0m serde_with v3.23.0
-[1m[92m   Compiling[0m soup3-sys v0.5.0
-[1m[92m   Compiling[0m javascriptcore-rs-sys v1.1.1
-[1m[92m   Compiling[0m toml_edit v0.25.13+spec-1.1.0
-[1m[92m   Compiling[0m enumflags2_derive v0.7.12
-[1m[92m   Compiling[0m generic-array v0.14.7
-[1m[92m   Compiling[0m gtk v0.18.2
-[1m[92m   Compiling[0m tauri-utils v2.9.3
-[1m[92m   Compiling[0m proc-macro-crate v3.5.0
-[1m[92m   Compiling[0m gtk3-macros v0.18.2
-[1m[92m   Compiling[0m dirs v6.0.0
-[1m[92m   Compiling[0m libspa-sys v0.10.1
-[1m[92m   Compiling[0m atk v0.18.2
-[1m[92m   Compiling[0m event-listener v5.4.2
-[1m[92m   Compiling[0m concurrent-queue v2.5.0
-[1m[92m   Compiling[0m time-macros v0.2.32
-[1m[92m   Compiling[0m webkit2gtk-sys v2.0.2
-[1m[92m   Compiling[0m zvariant_utils v4.2.0
-[1m[92m   Compiling[0m toml_datetime v0.7.5+spec-1.1.0
-[1m[92m   Compiling[0m x11 v2.21.0
-[1m[92m   Compiling[0m wayland-client v0.31.15
-[1m[92m   Compiling[0m winnow v0.7.15
-[1m[92m   Compiling[0m khronos_api v3.1.0
-[1m[92m   Compiling[0m drm-sys v0.8.1
-[1m[92m   Compiling[0m typenum v1.20.1
-[1m[92m   Compiling[0m zvariant_derive v5.15.0
-[1m[92m   Compiling[0m toml v0.9.12+spec-1.1.0
-[1m[92m   Compiling[0m event-listener-strategy v0.5.4
-[1m[91merror[0m: failed to run custom build command for `libspa-sys v0.10.1`
+[1m[94m170[0m [91m- [0m        .or_else(|| [91msys.os_version()[0m)
+[1m[94m170[0m [92m+ [0m        .or_else(|| [92msysinfo::System::os_version()[0m)
+    [1m[94m|[0m
 
-Caused by:
-  process didn't exit successfully: `/home/runner/work/pluto/pluto/src-tauri/target/debug/build/libspa-sys-4918e907b593526b/build-script-build` (exit status: 101)
-  --- stdout
-  cargo:rerun-if-changed=/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libspa-sys-0.10.1/Cargo.toml
-  cargo:rerun-if-env-changed=LIBPIPEWIRE_0.3_NO_PKG_CONFIG
-  cargo:rerun-if-env-changed=PKG_CONFIG_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG
-  cargo:rerun-if-env-changed=PKG_CONFIG
-  cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_PATH
-  cargo:rerun-if-env-changed=PKG_CONFIG_PATH
-  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_LIBDIR
-  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR
-  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
-  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
+[1m[91merror[E0599][0m[1m: no method named `host_name` found for struct `sysinfo::System` in the current scope[0m
+   [1m[94m--> [0msrc/commands.rs:184:19
+    [1m[94m|[0m
+[1m[94m184[0m [1m[94m|[0m         host: sys.host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+    [1m[94m|[0m                   [1m[91m^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
+    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
+[1m[96mhelp[0m: use associated function syntax instead
+    [1m[94m|[0m
+[1m[94m184[0m [91m- [0m        host: [91msys.host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+[1m[94m184[0m [92m+ [0m        host: [92msysinfo::System::host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+    [1m[94m|[0m
 
-  --- stderr
+[1m[91merror[E0382][0m[1m: borrow of moved value: `name`[0m
+   [1m[94m--> [0msrc/tools/mod.rs:229:21
+    [1m[94m|[0m
+[1m[94m187[0m [1m[94m|[0m     let name = name.to_string();
+    [1m[94m|[0m         [1m[94m----[0m [1m[94mmove occurs because `name` has type `std::string::String`, which does not implement the `Copy` trait[0m
+[1m[94m188[0m [1m[94m|[0m     let arguments = arguments.clone();
+[1m[94m189[0m [1m[94m|[0m     tauri::async_runtime::spawn_blocking(move || {
+    [1m[94m|[0m                                          [1m[94m-------[0m [1m[94mvalue moved into closure here[0m
+[1m[94m190[0m [1m[94m|[0m         match name.as_str() {
+    [1m[94m|[0m               [1m[94m----[0m [1m[94mvariable moved due to use in closure[0m
+[1m[94m...[0m
+[1m[94m229[0m [1m[94m|[0m     .unwrap_or_else(|e| ToolResult::fail(&name, format!("Tool task panicked: {}", e)))
+    [1m[94m|[0m                     [1m[91m^^^[0m                   [1m[94m----[0m [1m[94mborrow occurs due to use in closure[0m
+    [1m[94m|[0m                     [1m[91m|[0m
+    [1m[94m|[0m                     [1m[91mvalue borrowed here after move[0m
+    [1m[94m|[0m
+[1m[96mhelp[0m: consider cloning the value before moving it into the closure
+    [1m[94m|[0m
+[1m[94m189[0m [92m~ [0m    tauri::async_runtime::spawn_blocking([92m{[0m
+[1m[94m190[0m [92m+     let value = name.clone();[0m
+[1m[94m191[0m [92m~     [0mmove || {
+[1m[94m192[0m [92m~ [0m        match [92mvalue[0m.as_str() {
+[1m[94m193[0m [1m[94m|[0m             // system
+[1m[94m...[0m
+[1m[94m228[0m [1m[94m|[0m         }
+[1m[94m229[0m [92m~ [0m    }
+[1m[94m230[0m [92m~     }[0m)
+    [1m[94m|[0m
 
-  thread 'main' (10125) panicked at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libspa-sys-0.10.1/build.rs:10:10:
-  Cannot find libraries: PkgConfig(
-  pkg-config exited with status code 1
-  > PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 pkg-config --libs --cflags libpipewire-0.3 'libpipewire-0.3 >= 0.3'
+[1m[91merror[E0308][0m[1m: mismatched types[0m
+    [1m[94m--> [0msrc/nlu.rs:1127:30
+     [1m[94m|[0m
+[1m[94m1119[0m [1m[94m|[0m     let mut recipient_part = t.clone();
+     [1m[94m|[0m                              [1m[94m---------[0m [1m[94mexpected due to this value[0m
+[1m[94m...[0m
+[1m[94m1127[0m [1m[94m|[0m             recipient_part = recipient_part[..idx].to_string();
+     [1m[94m|[0m                              [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mexpected `&str`, found `String`[0m
+     [1m[94m|[0m
+[1m[96mhelp[0m: consider borrowing here
+     [1m[94m|[0m
+[1m[94m1127[0m [1m[94m| [0m            recipient_part = [92m&[0mrecipient_part[..idx].to_string();
+     [1m[94m|[0m                              [92m+[0m
 
-  pkg-config output:
-    Package libpipewire-0.3 was not found in the pkg-config search path.
-    Perhaps you should add the directory containing `libpipewire-0.3.pc'
-    to the PKG_CONFIG_PATH environment variable
-    Package 'libpipewire-0.3', required by 'virtual:world', not found
-    Package 'libpipewire-0.3', required by 'virtual:world', not found
+[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
+   [1m[94m--> [0msrc/tools/apps.rs:13:9
+    [1m[94m|[0m
+[1m[94m 13[0m [1m[94m|[0m     sys.refresh_processes();
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: method defined here
+   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
+    [1m[94m|[0m
+[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
+    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m 13[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
+    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
 
-  The system library `libpipewire-0.3` required by crate `libspa-sys` was not found.
-  The file `libpipewire-0.3.pc` needs to be installed and the PKG_CONFIG_PATH environment variable must contain its parent directory.
-  The PKG_CONFIG_PATH environment variable is not set.
+[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
+   [1m[94m--> [0msrc/tools/apps.rs:246:9
+    [1m[94m|[0m
+[1m[94m246[0m [1m[94m|[0m     sys.refresh_processes();
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: method defined here
+   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
+    [1m[94m|[0m
+[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
+    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m246[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
+    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
 
-  HINT: if you have installed the library, try setting PKG_CONFIG_PATH to the directory containing `libpipewire-0.3.pc`.
-  )
-  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
+[1m[91merror[E0308][0m[1m: `if` and `else` have incompatible types[0m
+   [1m[94m--> [0msrc/tools/system.rs:249:17
+    [1m[94m|[0m
+[1m[94m242[0m [1m[94m|[0m                 let level = if let Some(idx) = stdout.find("volume:") {
+    [1m[94m|[0m [1m[94m ___________________________-[0m
+[1m[94m243[0m [1m[94m|[0m [1m[94m|[0m                   let rest = &stdout[idx + 7..];
+[1m[94m244[0m [1m[94m|[0m [1m[94m|[0m [1m[94m/[0m                 rest.split_whitespace()
+[1m[94m245[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .next()
+[1m[94m246[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .and_then(|s| s.trim_start_matches('[').trim_end_matches(']').parse::<f64>().ok())
+[1m[94m247[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .map(|v| (v * 100.0).round() as u64)
+    [1m[94m|[0m [1m[94m|[0m [1m[94m|________________________________________________________-[0m [1m[94mexpected because of this[0m
+[1m[94m248[0m [1m[94m|[0m [1m[94m|[0m               } else {
+[1m[94m249[0m [1m[94m|[0m [1m[94m|[0m [1m[91m/[0m                 stdout
+[1m[94m250[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .split(|c: char| c == ' ' || c == '\n')
+[1m[94m251[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
+[1m[94m252[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .unwrap_or(0)
+    [1m[94m|[0m [1m[94m|[0m [1m[91m|_________________________________^[0m [1m[91mexpected `Option<u64>`, found `u64`[0m
+[1m[94m253[0m [1m[94m|[0m [1m[94m|[0m               };
+    [1m[94m|[0m [1m[94m|_______________-[0m [1m[94m`if` and `else` have incompatible types[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: expected enum `[1m[35mstd::option::Option<u64>[0m`
+               found type `[1m[35mu64[0m`
+[1m[96mhelp[0m: try wrapping the expression in `Some`
+    [1m[94m|[0m
+[1m[94m249[0m [92m~ [0m                [92mSome([0mstdout
+[1m[94m250[0m [1m[94m|[0m                     .split(|c: char| c == ' ' || c == '\n')
+[1m[94m251[0m [1m[94m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
+[1m[94m252[0m [92m~ [0m                    .unwrap_or(0)[92m)[0m
+    [1m[94m|[0m
+
+[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
+   [1m[94m--> [0msrc/tools/system.rs:350:9
+    [1m[94m|[0m
+[1m[94m350[0m [1m[94m|[0m     sys.refresh_processes();
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: method defined here
+   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
+    [1m[94m|[0m
+[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
+    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m350[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
+    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
+
+[1m[91merror[E0277][0m[1m: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `FromResidual`)[0m
+   [1m[94m--> [0msrc/tools/terminal.rs:179:69
+    [1m[94m|[0m
+[1m[94m162[0m [1m[94m|[0m pub fn execute_command(arguments: &Value) -> ToolResult {
+    [1m[94m|[0m [1m[94m-------------------------------------------------------[0m [1m[94mthis function should return `Result` or `Option` to accept `?`[0m
+[1m[94m...[0m
+[1m[94m179[0m [1m[94m|[0m                 .map_err(|e| ToolResult::fail("execute_command", e))?,
+    [1m[94m|[0m                                                                     [1m[91m^[0m [1m[91mcannot use the `?` operator in a function that returns `ToolResult`[0m
+
+[1m[91merror[E0382][0m[1m: use of moved value: `best`[0m
+   [1m[94m--> [0msrc/nlu.rs:245:5
+    [1m[94m|[0m
+[1m[94m239[0m [1m[94m|[0m     let mut best: Option<(usize, String)> = None;
+    [1m[94m|[0m         [1m[94m--------[0m [1m[94mmove occurs because `best` has type `std::option::Option<(usize, std::string::String)>`, which does not implement the `Copy` trait[0m
+[1m[94m240[0m [1m[94m|[0m     for (alias, path) in DIR_ALIASES {
+    [1m[94m|[0m     [1m[94m--------------------------------[0m [1m[94minside of this loop[0m
+[1m[94m241[0m [1m[94m|[0m         if t.contains(alias) && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
+    [1m[94m|[0m                                      [1m[94m---------------------------------[0m [1m[94m`best` moved due to this method call, in previous iteration of loop[0m
+[1m[94m242[0m [1m[94m|[0m             best = Some((alias.len(), expand_home(path)));
+    [1m[94m|[0m             [1m[94m----[0m [1m[94mthis reinitialization might get skipped[0m
+[1m[94m...[0m
+[1m[94m245[0m [1m[94m|[0m     best.map(|(_, p)| p).unwrap_or_else(|| expand_home(default))
+    [1m[94m|[0m     [1m[91m^^^^[0m [1m[91mvalue used here after move[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: `std::option::Option::<T>::map` takes ownership of the receiver `self`, which moves `best`
+   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:1158:27
+[1m[96mhelp[0m: you can `clone` the value and consume it, but this might not be your desired behavior
+    [1m[94m|[0m
+[1m[94m241[0m [1m[94m| [0m        if t.contains(alias) && best[92m.clone()[0m.map(|(len, _)| alias.len() > len).unwrap_or(true) {
+    [1m[94m|[0m                                     [92m++++++++[0m
+
+[1m[33mwarning[0m[1m: unused variable: `text`[0m
+   [1m[94m--> [0msrc/nlu.rs:618:18
+    [1m[94m|[0m
+[1m[94m618[0m [1m[94m|[0m fn greeting_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
+    [1m[94m|[0m                  [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_text`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: unused variable: `text`[0m
+   [1m[94m--> [0msrc/nlu.rs:660:16
+    [1m[94m|[0m
+[1m[94m660[0m [1m[94m|[0m fn system_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
+    [1m[94m|[0m                [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_text`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `w`[0m
+   [1m[94m--> [0msrc/nlu.rs:923:35
+    [1m[94m|[0m
+[1m[94m923[0m [1m[94m|[0m fn file_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Vec<PlanItem>> {
+    [1m[94m|[0m                                   [1m[33m^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_w`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `err`[0m
+  [1m[94m--> [0msrc/tools/apps.rs:51:30
+   [1m[94m|[0m
+[1m[94m51[0m [1m[94m|[0m                 Ok((code, _, err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
+   [1m[94m|[0m                              [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_err`[0m
+
+[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
+   [1m[94m--> [0msrc/tools/system.rs:139:15
+    [1m[94m|[0m
+[1m[94m139[0m [1m[94m|[0m         match capture_x11(&path, &area) {
+    [1m[94m|[0m               [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
+   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
+   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: not covered
+    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
+[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    [1m[94m|[0m
+[1m[94m144[0m [92m~ [0m            }[92m,[0m
+[1m[94m145[0m [92m+             Ok(false) => todo!()[0m
+    [1m[94m|[0m
+
+[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
+   [1m[94m--> [0msrc/tools/system.rs:149:19
+    [1m[94m|[0m
+[1m[94m149[0m [1m[94m|[0m             match result {
+    [1m[94m|[0m                   [1m[91m^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
+   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
+   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: not covered
+    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
+[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    [1m[94m|[0m
+[1m[94m151[0m [92m~ [0m                Err(e) => return ToolResult::fail("take_screenshot", e)[92m,[0m
+[1m[94m152[0m [92m~                 Ok(false) => todo!()[0m,
+    [1m[94m|[0m
+
+[1m[33mwarning[0m[1m: unused variable: `err`[0m
+   [1m[94m--> [0msrc/tools/system.rs:216:30
+    [1m[94m|[0m
+[1m[94m216[0m [1m[94m|[0m                 Ok((code, _, err)) if code == 0 => {
+    [1m[94m|[0m                              [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_err`[0m
+
+[1m[33mwarning[0m[1m: value assigned to `status` is never read[0m
+   [1m[94m--> [0msrc/tools/terminal.rs:138:22
+    [1m[94m|[0m
+[1m[94m138[0m [1m[94m|[0m     let mut status = None;
+    [1m[94m|[0m                      [1m[33m^^^^[0m [1m[33mthis value is reassigned later and never used[0m
+[1m[94m...[0m
+[1m[94m142[0m [1m[94m|[0m                 status = Some(s);
+    [1m[94m|[0m                 [1m[94m----------------[0m [1m[94m`status` is overwritten here before the previous value is read[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+[1m[91merror[E0716][0m[1m: temporary value dropped while borrowed[0m
+   [1m[94m--> [0msrc/tools/voice.rs:157:9
+    [1m[94m|[0m
+[1m[94m157[0m [1m[94m|[0m         txt_path.with_extension("").to_str().unwrap_or(""),
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mcreates a temporary value which is freed while still in use[0m
+[1m[94m158[0m [1m[94m|[0m     ];
+    [1m[94m|[0m      [1m[94m-[0m [1m[94mtemporary value is freed at the end of this statement[0m
+[1m[94m159[0m [1m[94m|[0m     match run_process(&program, &args, 60_000, &[]) {
+    [1m[94m|[0m                                 [1m[94m-----[0m [1m[94mborrow later used here[0m
+    [1m[94m|[0m
+[1m[96mhelp[0m: consider using a `let` binding to create a longer lived value
+    [1m[94m|[0m
+[1m[94m150[0m [92m~ [0m    [92mlet binding = txt_path.with_extension("");[0m
+[1m[94m151[0m [92m~     [0mlet args = [
+[1m[94m152[0m [1m[94m|[0m         "-m",
+[1m[94m...[0m
+[1m[94m157[0m [1m[94m|[0m         "-of",
+[1m[94m158[0m [92m~ [0m        [92mbinding[0m.to_str().unwrap_or(""),
+    [1m[94m|[0m
+
+[1m[91merror[E0382][0m[1m: use of moved value: `message`[0m
+  [1m[94m--> [0msrc/tools/mod.rs:26:75
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m|[0m [1m[94m...[0mol: &str, message: impl Into<String>) -> Self {
+   [1m[94m|[0m              [1m[94m-------[0m [1m[94mmove occurs because `message` has type `impl Into<String>`, which does not implement the `Copy` trait[0m
+[1m[94m26[0m [1m[94m|[0m [1m[94m...[0m { success: false, message: message.into(), error: Some(message.into()), data: json!({ "tool": tool, "success": false }) }
+   [1m[94m|[0m                                        [1m[94m------[0m              [1m[91m^^^^^^^[0m [1m[91mvalue used here after move[0m
+   [1m[94m|[0m                                        [1m[94m|[0m
+   [1m[94m|[0m                                        [1m[94m`message` moved due to this method call[0m
+   [1m[94m|[0m
+[1m[92mnote[0m: `into` takes ownership of the receiver `self`, which moves `message`
+  [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/convert/mod.rs:456:12
+[1m[96mhelp[0m: consider restricting opaque type `impl Into<String>` with trait `Copy`
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m| [0m    pub fn fail(tool: &str, message: impl Into<String>[92m + std::marker::Copy[0m) -> Self {
+   [1m[94m|[0m                                                        [92m+++++++++++++++++++[0m
+
+[1m[33mwarning[0m[1m: value assigned to `status` is never read[0m
+   [1m[94m--> [0msrc/tools/mod.rs:131:22
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     let mut status = None;
+    [1m[94m|[0m                      [1m[33m^^^^[0m [1m[33mthis value is reassigned later and never used[0m
+[1m[94m...[0m
+[1m[94m135[0m [1m[94m|[0m                 status = Some(s);
+    [1m[94m|[0m                 [1m[94m----------------[0m [1m[94m`status` is overwritten here before the previous value is read[0m
+
+[1mSome errors have detailed explanations: E0004, E0061, E0277, E0308, E0382, E0428, E0599, E0716.[0m
+[1mFor more information about an error, try `rustc --explain E0004`.[0m
+[1m[33mwarning[0m: `pluto` (lib test) generated 9 warnings
+[1m[91merror[0m: could not compile `pluto` (lib test) due to 18 previous errors; 9 warnings emitted
 EXIT=101
 
 ===== tauri build =====
+[1m[33mwarning[0m[1m: unused import: `std::sync::atomic::Ordering`[0m
+ [1m[94m--> [0msrc/commands.rs:8:5
+  [1m[94m|[0m
+[1m[94m8[0m [1m[94m|[0m use std::sync::atomic::Ordering;
+  [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [1m[94m|[0m
+  [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
-> pluto@1.0.0 build:deb
-> tauri build --bundles deb
+[1m[33mwarning[0m[1m: unused import: `run_process`[0m
+  [1m[94m--> [0msrc/tools/terminal.rs:10:27
+   [1m[94m|[0m
+[1m[94m10[0m [1m[94m|[0m use super::{find_program, run_process, ToolResult};
+   [1m[94m|[0m                           [1m[33m^^^^^^^^^^^[0m
 
-        Info Looking up installed tauri packages to check mismatched versions...
-     Running beforeBuildCommand `npm run build`
+[1m[91merror[E0061][0m[1m: this function takes 4 arguments but 2 arguments were supplied[0m
+   [1m[94m--> [0msrc/assistant.rs:277:22
+    [1m[94m|[0m
+[1m[94m277[0m [1m[94m|[0m         let result = tools::run_tool(tool_name, arguments).await;
+    [1m[94m|[0m                      [1m[91m^^^^^^^^^^^^^^^[0m[1m[94m----------------------[0m
+    [1m[94m|[0m                                     [1m[94m|[0m           [1m[94m|[0m
+    [1m[94m|[0m                                     [1m[94m|[0m           [1m[94mexpected `&[&str]`, found `&&Value`[0m
+    [1m[94m|[0m                                     [1m[94mtwo arguments of type `u64` and `&[(&str, &str)]` are missing[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: expected reference `&[1m[35m[&str][0m`
+               found reference `&[1m[35m&[0m[1m[35mserde_json::Value[0m`
+[1m[92mnote[0m: function defined here
+   [1m[94m--> [0msrc/tools/mod.rs:161:8
+    [1m[94m|[0m
+[1m[94m161[0m [1m[94m|[0m pub fn run_tool(
+    [1m[94m|[0m        [1m[92m^^^^^^^^[0m
+[1m[94m162[0m [1m[94m|[0m     tool: &str,
+[1m[94m163[0m [1m[94m|[0m     args: &[&str],
+    [1m[94m|[0m     [1m[94m-------------[0m
+[1m[94m164[0m [1m[94m|[0m     timeout_ms: u64,
+    [1m[94m|[0m     [1m[94m---------------[0m
+[1m[94m165[0m [1m[94m|[0m     env: &[(&str, &str)],
+    [1m[94m|[0m     [1m[94m--------------------[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m277[0m [91m- [0m        let result = tools::run_tool[91m(tool_name, arguments)[0m.await;
+[1m[94m277[0m [92m+ [0m        let result = tools::run_tool[92m(tool_name, /* &[&str] */, /* u64 */, /* &[(&str, &str)] */)[0m.await;
+    [1m[94m|[0m
 
-> pluto@1.0.0 build
-> next build --turbopack
+[1m[91merror[E0277][0m[1m: `ToolResult` is not a future[0m
+   [1m[94m--> [0msrc/assistant.rs:277:60
+    [1m[94m|[0m
+[1m[94m277[0m [1m[94m|[0m         let result = tools::run_tool(tool_name, arguments).await;
+    [1m[94m|[0m                      [1m[94m-------------------------------------[0m [1m[91m^^^^^[0m [1m[91m`ToolResult` is not a future[0m
+    [1m[94m|[0m                      [1m[94m|[0m
+    [1m[94m|[0m                      [1m[94mthis call returns `ToolResult`[0m
+    [1m[94m|[0m
+[1m[96mhelp[0m: the trait `Future` is not implemented for `ToolResult`
+   [1m[94m--> [0msrc/tools/mod.rs:13:1
+    [1m[94m|[0m
+[1m[94m 13[0m [1m[94m|[0m pub struct ToolResult {
+    [1m[94m|[0m [1m[96m^^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: ToolResult must be a future or must implement `IntoFuture` to be awaited
+    [1m[94m= [0m[1mnote[0m: required for `ToolResult` to implement `IntoFuture`
+[1m[96mhelp[0m: remove the `.await`
+    [1m[94m|[0m
+[1m[94m277[0m [91m- [0m        let result = tools::run_tool(tool_name, arguments)[91m.await[0m;
+[1m[94m277[0m [92m+ [0m        let result = tools::run_tool(tool_name, arguments);
+    [1m[94m|[0m
+[1m[96mhelp[0m: alternatively, consider making `fn run_tool` asynchronous
+   [1m[94m--> [0msrc/tools/mod.rs:161:4
+    [1m[94m|[0m
+[1m[94m161[0m [1m[94m| [0mpub[92m async[0m fn run_tool(
+    [1m[94m|[0m     [92m+++++[0m
 
-   ▲ Next.js 15.5.25 (Turbopack)
+[1m[91merror[E0599][0m[1m: no method named `long_os_version` found for struct `sysinfo::System` in the current scope[0m
+   [1m[94m--> [0msrc/commands.rs:169:10
+    [1m[94m|[0m
+[1m[94m168[0m [1m[94m|[0m       let os = sys
+    [1m[94m|[0m [1m[94m ______________-[0m
+[1m[94m169[0m [1m[94m|[0m [1m[94m|[0m         .long_os_version()
+    [1m[94m|[0m [1m[94m|[0m         [1m[94m-[0m[1m[91m^^^^^^^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
+    [1m[94m|[0m [1m[94m|_________|[0m
+    [1m[94m|[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
+    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
+[1m[96mhelp[0m: use associated function syntax instead
+    [1m[94m|[0m
+[1m[94m168[0m [91m- [0m    let os = [91msys[0m
+[1m[94m169[0m [91m-         .long_os_version()[0m
+[1m[94m168[0m [92m+ [0m    let os = [92msysinfo::System::long_os_version()[0m
+    [1m[94m|[0m
 
-   Creating an optimized production build ...
- ✓ Finished writing to disk in 20ms
- ✓ Compiled successfully in 5.0s
-   Linting and checking validity of types ...
+[1m[91merror[E0599][0m[1m: no method named `os_version` found for struct `sysinfo::System` in the current scope[0m
+   [1m[94m--> [0msrc/commands.rs:170:25
+    [1m[94m|[0m
+[1m[94m170[0m [1m[94m|[0m         .or_else(|| sys.os_version())
+    [1m[94m|[0m                         [1m[91m^^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
+    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
+[1m[96mhelp[0m: use associated function syntax instead
+    [1m[94m|[0m
+[1m[94m170[0m [91m- [0m        .or_else(|| [91msys.os_version()[0m)
+[1m[94m170[0m [92m+ [0m        .or_else(|| [92msysinfo::System::os_version()[0m)
+    [1m[94m|[0m
 
-./src/services/localAssistant.ts
-103:17  Warning: '_action' is defined but never used.  @typescript-eslint/no-unused-vars
-109:16  Warning: '_action' is defined but never used.  @typescript-eslint/no-unused-vars
+[1m[91merror[E0599][0m[1m: no method named `host_name` found for struct `sysinfo::System` in the current scope[0m
+   [1m[94m--> [0msrc/commands.rs:184:19
+    [1m[94m|[0m
+[1m[94m184[0m [1m[94m|[0m         host: sys.host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+    [1m[94m|[0m                   [1m[91m^^^^^^^^^[0m [1m[91mthis is an associated function, not a method[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: found the following associated functions; to be used as methods, functions must have a `self` parameter
+    [1m[94m= [0m[1mnote[0m: the candidate is defined in an impl for the type `sysinfo::System`
+[1m[96mhelp[0m: use associated function syntax instead
+    [1m[94m|[0m
+[1m[94m184[0m [91m- [0m        host: [91msys.host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+[1m[94m184[0m [92m+ [0m        host: [92msysinfo::System::host_name()[0m.unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
+    [1m[94m|[0m
 
-info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
-   Collecting page data ...
-   Generating static pages (0/11) ...
-   Generating static pages (2/11) 
-   Generating static pages (5/11) 
-   Generating static pages (8/11) 
- ✓ Generating static pages (11/11)
-   Finalizing page optimization ...
-   Collecting build traces ...
-   Exporting (0/2) ...
- ✓ Exporting (2/2)
+[1m[91merror[E0382][0m[1m: borrow of moved value: `name`[0m
+   [1m[94m--> [0msrc/tools/mod.rs:229:21
+    [1m[94m|[0m
+[1m[94m187[0m [1m[94m|[0m     let name = name.to_string();
+    [1m[94m|[0m         [1m[94m----[0m [1m[94mmove occurs because `name` has type `std::string::String`, which does not implement the `Copy` trait[0m
+[1m[94m188[0m [1m[94m|[0m     let arguments = arguments.clone();
+[1m[94m189[0m [1m[94m|[0m     tauri::async_runtime::spawn_blocking(move || {
+    [1m[94m|[0m                                          [1m[94m-------[0m [1m[94mvalue moved into closure here[0m
+[1m[94m190[0m [1m[94m|[0m         match name.as_str() {
+    [1m[94m|[0m               [1m[94m----[0m [1m[94mvariable moved due to use in closure[0m
+[1m[94m...[0m
+[1m[94m229[0m [1m[94m|[0m     .unwrap_or_else(|e| ToolResult::fail(&name, format!("Tool task panicked: {}", e)))
+    [1m[94m|[0m                     [1m[91m^^^[0m                   [1m[94m----[0m [1m[94mborrow occurs due to use in closure[0m
+    [1m[94m|[0m                     [1m[91m|[0m
+    [1m[94m|[0m                     [1m[91mvalue borrowed here after move[0m
+    [1m[94m|[0m
+[1m[96mhelp[0m: consider cloning the value before moving it into the closure
+    [1m[94m|[0m
+[1m[94m189[0m [92m~ [0m    tauri::async_runtime::spawn_blocking([92m{[0m
+[1m[94m190[0m [92m+     let value = name.clone();[0m
+[1m[94m191[0m [92m~     [0mmove || {
+[1m[94m192[0m [92m~ [0m        match [92mvalue[0m.as_str() {
+[1m[94m193[0m [1m[94m|[0m             // system
+[1m[94m...[0m
+[1m[94m228[0m [1m[94m|[0m         }
+[1m[94m229[0m [92m~ [0m    }
+[1m[94m230[0m [92m~     }[0m)
+    [1m[94m|[0m
 
-Route (app)                         Size  First Load JS
-┌ ○ /                            71.7 kB         195 kB
-├ ○ /_not-found                      0 B         115 kB
-├ ○ /apps                        1.83 kB         186 kB
-├ ○ /automations                 1.68 kB         186 kB
-├ ○ /chat                        66.9 kB         190 kB
-├ ○ /files                       1.61 kB         186 kB
-├ ○ /settings                       2 kB         187 kB
-└ ○ /system                      1.95 kB         186 kB
-+ First Load JS shared by all     125 kB
-  ├ chunks/9f66e81998db7823.js   59.2 kB
-  ├ chunks/c20516c263ef3a09.js   17.2 kB
-  ├ chunks/f0d3bc64c92d6f19.js   22.2 kB
-  ├ chunks/ecdbbc739a4eae1a.css  10.4 kB
-  └ other shared chunks (total)  16.2 kB
+[1m[91merror[E0308][0m[1m: mismatched types[0m
+    [1m[94m--> [0msrc/nlu.rs:1127:30
+     [1m[94m|[0m
+[1m[94m1119[0m [1m[94m|[0m     let mut recipient_part = t.clone();
+     [1m[94m|[0m                              [1m[94m---------[0m [1m[94mexpected due to this value[0m
+[1m[94m...[0m
+[1m[94m1127[0m [1m[94m|[0m             recipient_part = recipient_part[..idx].to_string();
+     [1m[94m|[0m                              [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mexpected `&str`, found `String`[0m
+     [1m[94m|[0m
+[1m[96mhelp[0m: consider borrowing here
+     [1m[94m|[0m
+[1m[94m1127[0m [1m[94m| [0m            recipient_part = [92m&[0mrecipient_part[..idx].to_string();
+     [1m[94m|[0m                              [92m+[0m
 
+[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
+   [1m[94m--> [0msrc/tools/apps.rs:13:9
+    [1m[94m|[0m
+[1m[94m 13[0m [1m[94m|[0m     sys.refresh_processes();
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: method defined here
+   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
+    [1m[94m|[0m
+[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
+    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m 13[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
+    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
 
-○  (Static)  prerendered as static content
+[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
+   [1m[94m--> [0msrc/tools/apps.rs:246:9
+    [1m[94m|[0m
+[1m[94m246[0m [1m[94m|[0m     sys.refresh_processes();
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: method defined here
+   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
+    [1m[94m|[0m
+[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
+    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m246[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
+    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
 
-[1m[92m   Compiling[0m quote v1.0.47
-[1m[92m   Compiling[0m proc-macro2 v1.0.107
-[1m[92m   Compiling[0m unicode-ident v1.0.24
-[1m[92m   Compiling[0m serde_core v1.0.229
-[1m[92m   Compiling[0m libc v0.2.189
-[1m[92m   Compiling[0m serde v1.0.229
-[1m[92m   Compiling[0m pkg-config v0.3.34
-[1m[92m   Compiling[0m smallvec v1.16.0
-[1m[92m   Compiling[0m hashbrown v0.17.1
-[1m[92m   Compiling[0m syn v3.0.5
-[1m[92m   Compiling[0m syn v2.0.119
-[1m[92m   Compiling[0m equivalent v1.0.2
-[1m[92m   Compiling[0m indexmap v2.14.2
-[1m[92m   Compiling[0m heck v0.5.0
-[1m[92m   Compiling[0m version-compare v0.2.1
-[1m[92m   Compiling[0m winnow v0.5.40
-[1m[92m   Compiling[0m target-lexicon v0.12.16
-[1m[92m   Compiling[0m memchr v2.8.3
-[1m[92m   Compiling[0m cfg-expr v0.15.8
-[1m[92m   Compiling[0m bitflags v2.13.1
-[1m[92m   Compiling[0m synstructure v0.13.2
-[1m[92m   Compiling[0m serde_derive v1.0.229
-[1m[92m   Compiling[0m autocfg v1.5.1
-[1m[92m   Compiling[0m zerovec-derive v0.11.6
-[1m[92m   Compiling[0m zerofrom-derive v0.1.7
-[1m[92m   Compiling[0m yoke-derive v0.8.2
-[1m[92m   Compiling[0m cfg-if v1.0.4
-[1m[92m   Compiling[0m version_check v0.9.5
-[1m[92m   Compiling[0m displaydoc v0.2.7
-[1m[92m   Compiling[0m winnow v1.0.4
-[1m[92m   Compiling[0m pin-project-lite v0.2.17
-[1m[92m   Compiling[0m toml_datetime v1.1.1+spec-1.1.0
-[1m[92m   Compiling[0m thiserror v1.0.69
-[1m[92m   Compiling[0m toml_parser v1.1.3+spec-1.1.0
-[1m[92m   Compiling[0m futures-core v0.3.34
-[1m[92m   Compiling[0m thiserror-impl v1.0.69
-[1m[92m   Compiling[0m siphasher v1.0.3
-[1m[92m   Compiling[0m shlex v2.0.1
-[1m[92m   Compiling[0m find-msvc-tools v0.1.12
-[1m[92m   Compiling[0m phf_shared v0.13.1
-[1m[92m   Compiling[0m cc v1.4.5
-[1m[92m   Compiling[0m toml_datetime v0.6.3
-[1m[92m   Compiling[0m serde_spanned v0.6.9
-[1m[92m   Compiling[0m icu_properties_data v2.3.0
-[1m[92m   Compiling[0m toml_edit v0.20.2
-[1m[92m   Compiling[0m icu_normalizer_data v2.3.0
-[1m[92m   Compiling[0m fastrand v2.5.0
-[1m[92m   Compiling[0m phf_generator v0.13.1
-[1m[92m   Compiling[0m stable_deref_trait v1.2.1
-[1m[92m   Compiling[0m serde_spanned v1.1.1
-[1m[92m   Compiling[0m toml_writer v1.1.2+spec-1.1.0
-[1m[92m   Compiling[0m slab v0.4.12
-[1m[92m   Compiling[0m zmij v1.0.23
-[1m[92m   Compiling[0m once_cell v1.21.4
-[1m[92m   Compiling[0m rustix v1.1.4
-[1m[92m   Compiling[0m zerofrom v0.1.8
-[1m[92m   Compiling[0m linux-raw-sys v0.12.1
-[1m[92m   Compiling[0m glob v0.3.4
-[1m[92m   Compiling[0m yoke v0.8.3
-[1m[92m   Compiling[0m toml v1.1.5+spec-1.1.0
-[1m[92m   Compiling[0m proc-macro-error-attr v1.0.4
-[1m[92m   Compiling[0m aho-corasick v1.1.5
-[1m[92m   Compiling[0m toml v0.8.2
-[1m[92m   Compiling[0m system-deps v6.2.2
-[1m[92m   Compiling[0m semver v1.0.28
-[1m[92m   Compiling[0m thiserror v2.0.20
-[1m[92m   Compiling[0m syn v1.0.109
-[1m[92m   Compiling[0m parking_lot_core v0.9.12
-[1m[92m   Compiling[0m regex-syntax v0.8.11
-[1m[92m   Compiling[0m futures-io v0.3.34
-[1m[92m   Compiling[0m glib-sys v0.18.1
-[1m[92m   Compiling[0m gobject-sys v0.18.0
-[1m[92m   Compiling[0m gio-sys v0.18.1
-[1m[92m   Compiling[0m proc-macro-error v1.0.4
-[1m[92m   Compiling[0m memoffset v0.9.1
-[1m[92m   Compiling[0m rustc-hash v2.1.3
-[1m[92m   Compiling[0m regex-automata v0.4.18
-[1m[92m   Compiling[0m gdk-sys v0.18.2
-[1m[92m   Compiling[0m zerovec v0.11.8
-[1m[92m   Compiling[0m thiserror-impl v2.0.20
-[1m[92m   Compiling[0m regex v1.13.1
-[1m[92m   Compiling[0m phf_macros v0.13.1
-[1m[92m   Compiling[0m futures-macro v0.3.34
-[1m[92m   Compiling[0m futures-task v0.3.34
-[1m[92m   Compiling[0m typeid v1.0.3
-[1m[92m   Compiling[0m proc-macro-crate v2.0.2
-[1m[92m   Compiling[0m heck v0.4.1
-[1m[92m   Compiling[0m futures-util v0.3.34
-[1m[92m   Compiling[0m num-conv v0.2.2
-[1m[92m   Compiling[0m time-core v0.1.9
-[1m[92m   Compiling[0m log v0.4.34
-[1m[92m   Compiling[0m glib-macros v0.18.5
-[1m[92m   Compiling[0m tinystr v0.8.4
-[1m[92m   Compiling[0m gdk-pixbuf-sys v0.18.0
-[1m[92m   Compiling[0m pango-sys v0.18.0
-[1m[92m   Compiling[0m cairo-sys-rs v0.18.2
-[1m[92m   Compiling[0m rustc_version v0.4.1
-[1m[92m   Compiling[0m phf_codegen v0.13.1
-[1m[92m   Compiling[0m futures-channel v0.3.34
-[1m[92m   Compiling[0m ident_case v1.0.1
-[1m[92m   Compiling[0m erased-serde v0.4.10
-[1m[92m   Compiling[0m strsim v0.11.1
-[1m[92m   Compiling[0m itoa v1.0.18
-[1m[92m   Compiling[0m writeable v0.6.4
-[1m[92m   Compiling[0m litemap v0.8.3
-[1m[92m   Compiling[0m icu_locale_core v2.3.0
-[1m[92m   Compiling[0m darling_core v0.24.1
-[1m[92m   Compiling[0m futures-executor v0.3.34
-[1m[92m   Compiling[0m potential_utf v0.1.6
-[1m[92m   Compiling[0m atk-sys v0.18.2
-[1m[92m   Compiling[0m zerotrie v0.2.5
-[1m[92m   Compiling[0m utf8_iter v1.0.4
-[1m[92m   Compiling[0m glib v0.18.5
-[1m[92m   Compiling[0m icu_collections v2.3.0
-[1m[92m   Compiling[0m icu_provider v2.3.1
-[1m[92m   Compiling[0m new_debug_unreachable v1.0.6
-[1m[92m   Compiling[0m anyhow v1.0.104
-[1m[92m   Compiling[0m scopeguard v1.2.0
-[1m[92m   Compiling[0m crossbeam-utils v0.8.23
-[1m[92m   Compiling[0m lock_api v0.4.14
-[1m[92m   Compiling[0m phf v0.13.1
-[1m[92m   Compiling[0m string_cache_codegen v0.6.1
-[1m[92m   Compiling[0m target-lexicon v0.13.5
-[1m[92m   Compiling[0m precomputed-hash v0.1.1
-[1m[92m   Compiling[0m serde_json v1.0.151
-[1m[92m   Compiling[0m gio v0.18.4
-[1m[92m   Compiling[0m crc32fast v1.5.1
-[1m[92m   Compiling[0m getrandom v0.4.3
-[1m[92m   Compiling[0m darling_macro v0.24.1
-[1m[92m   Compiling[0m web_atoms v0.2.6
-[1m[92m   Compiling[0m parking_lot v0.12.5
-[1m[92m   Compiling[0m darling v0.24.1
-[1m[92m   Compiling[0m serde_with_macros v3.23.0
-[1m[92m   Compiling[0m icu_normalizer v2.3.0
-[1m[92m   Compiling[0m icu_properties v2.3.0
-[1m[92m   Compiling[0m gtk-sys v0.18.2
-[1m[92m   Compiling[0m clang-sys v1.9.1
-[1m[92m   Compiling[0m ctor-proc-macro v0.0.7
-[1m[92m   Compiling[0m idna_adapter v1.2.2
-[1m[92m   Compiling[0m string_cache v0.9.0
-[1m[92m   Compiling[0m quick-xml v0.41.0
-[1m[92m   Compiling[0m minimal-lexical v0.2.1
-[1m[92m   Compiling[0m percent-encoding v2.3.2
-[1m[92m   Compiling[0m dtoa v1.0.11
-[1m[92m   Compiling[0m parking v2.2.1
-[1m[92m   Compiling[0m dtoa-short v0.3.5
-[1m[92m   Compiling[0m form_urlencoded v1.2.2
-[1m[92m   Compiling[0m nom v7.1.3
-[1m[92m   Compiling[0m uuid v1.26.0
-[1m[92m   Compiling[0m cfg-expr v0.20.9
-[1m[92m   Compiling[0m idna v1.1.0
-[1m[92m   Compiling[0m tendril v0.5.1
-[1m[92m   Compiling[0m selectors v0.36.1
-[1m[92m   Compiling[0m libloading v0.8.9
-[1m[92m   Compiling[0m indexmap v1.9.3
-[1m[92m   Compiling[0m cssparser-macros v0.6.1
-[1m[92m   Compiling[0m derive_more-impl v2.1.1
-[1m[92m   Compiling[0m wayland-sys v0.31.11
-[1m[92m   Compiling[0m byteorder v1.5.0
-[1m[92m   Compiling[0m alloc-no-stdlib v2.0.4
-[1m[92m   Compiling[0m camino v1.2.5
-[1m[92m   Compiling[0m unic-common v0.9.0
-[1m[92m   Compiling[0m rand_core v0.10.1
-[1m[92m   Compiling[0m bindgen v0.72.1
-[1m[92m   Compiling[0m unicode-width v0.2.2
-[1m[92m   Compiling[0m unic-char-range v0.9.0
-[1m[92m   Compiling[0m anstyle v1.0.14
-[1m[92m   Compiling[0m either v1.18.0
-[1m[92m   Compiling[0m annotate-snippets v0.11.5
-[1m[92m   Compiling[0m itertools v0.13.0
-[1m[92m   Compiling[0m unic-char-property v0.9.0
-[1m[92m   Compiling[0m derive_more v2.1.1
-[1m[92m   Compiling[0m unic-ucd-version v0.9.0
-[1m[92m   Compiling[0m alloc-stdlib v0.2.4
-[1m[92m   Compiling[0m cssparser v0.36.0
-[1m[92m   Compiling[0m dlib v0.5.3
-[1m[92m   Compiling[0m markup5ever v0.38.0
-[1m[92m   Compiling[0m url v2.5.8
-[1m[92m   Compiling[0m cexpr v0.6.0
-[1m[92m   Compiling[0m system-deps v7.0.8
-[1m[92m   Compiling[0m wayland-backend v0.3.17
-[1m[92m   Compiling[0m servo_arc v0.4.3
-[1m[92m   Compiling[0m serde_derive_internals v0.29.1
-[1m[92m   Compiling[0m bit-vec v0.8.0
-[1m[92m   Compiling[0m shlex v1.3.0
-[1m[92m   Compiling[0m hashbrown v0.12.3
-[1m[92m   Compiling[0m fnv v1.0.7
-[1m[92m   Compiling[0m schemars v0.8.22
-[1m[92m   Compiling[0m deranged v0.5.8
-[1m[92m   Compiling[0m powerfmt v0.2.0
-[1m[92m   Compiling[0m schemars_derive v0.8.22
-[1m[92m   Compiling[0m time v0.3.55
-[1m[92m   Compiling[0m cfb v0.7.3
-[1m[92m   Compiling[0m bit-set v0.8.0
-[1m[92m   Compiling[0m html5ever v0.38.0
-[1m[92m   Compiling[0m brotli-decompressor v5.0.3
-[1m[92m   Compiling[0m unic-ucd-ident v0.9.0
-[1m[92m   Compiling[0m gdk-pixbuf v0.18.5
-[1m[92m   Compiling[0m pango v0.18.3
-[1m[92m   Compiling[0m cairo-rs v0.18.5
-[1m[92m   Compiling[0m jsonptr v0.6.3
-[1m[92m   Compiling[0m field-offset v0.3.6
-[1m[92m   Compiling[0m toml_edit v0.19.15
-[1m[92m   Compiling[0m cargo-platform v0.1.9
-[1m[92m   Compiling[0m quick-xml v0.42.0
-[1m[92m   Compiling[0m dyn-clone v1.0.20
-[1m[92m   Compiling[0m foldhash v0.2.0
-[1m[92m   Compiling[0m base64 v0.23.1
-[1m[92m   Compiling[0m scoped-tls v1.0.1
-[1m[92m   Compiling[0m bytes v1.12.1
-[1m[92m   Compiling[0m dunce v1.0.5
-[1m[92m   Compiling[0m same-file v1.0.6
-[1m[92m   Compiling[0m downcast-rs v1.2.1
-[1m[92m   Compiling[0m walkdir v2.5.0
-[1m[92m   Compiling[0m http v1.5.0
-[1m[92m   Compiling[0m proc-macro-crate v1.3.1
-[1m[92m   Compiling[0m plist v1.10.1
-[1m[92m   Compiling[0m dom_query v0.27.0
-[1m[92m   Compiling[0m cargo_metadata v0.19.2
-[1m[92m   Compiling[0m gdk v0.18.2
-[1m[92m   Compiling[0m json-patch v3.0.1
-[1m[92m   Compiling[0m urlpattern v0.3.0
-[1m[92m   Compiling[0m brotli v8.0.4
-[1m[92m   Compiling[0m serde-untagged v0.1.9
-[1m[92m   Compiling[0m infer v0.19.0
-[1m[92m   Compiling[0m wayland-scanner v0.31.11
-[1m[92m   Compiling[0m ctor v0.8.0
-[1m[92m   Compiling[0m serde_with v3.23.0
-[1m[92m   Compiling[0m soup3-sys v0.5.0
-[1m[92m   Compiling[0m javascriptcore-rs-sys v1.1.1
-[1m[92m   Compiling[0m toml_edit v0.25.13+spec-1.1.0
-[1m[92m   Compiling[0m generic-array v0.14.7
-[1m[92m   Compiling[0m enumflags2_derive v0.7.12
-[1m[92m   Compiling[0m gtk v0.18.2
-[1m[92m   Compiling[0m simd-adler32 v0.3.10
-[1m[92m   Compiling[0m tauri-utils v2.9.3
-[1m[92m   Compiling[0m proc-macro-crate v3.5.0
-[1m[92m   Compiling[0m gtk3-macros v0.18.2
-[1m[92m   Compiling[0m libspa-sys v0.10.1
-[1m[92m   Compiling[0m atk v0.18.2
-[1m[92m   Compiling[0m event-listener v5.4.2
-[1m[92m   Compiling[0m concurrent-queue v2.5.0
-[1m[92m   Compiling[0m time-macros v0.2.32
-[1m[92m   Compiling[0m webkit2gtk-sys v2.0.2
-[1m[92m   Compiling[0m zvariant_utils v4.2.0
-[1m[92m   Compiling[0m toml_datetime v0.7.5+spec-1.1.0
-[1m[92m   Compiling[0m x11 v2.21.0
-[1m[92m   Compiling[0m winnow v0.7.15
-[1m[92m   Compiling[0m typenum v1.20.1
-[1m[92m   Compiling[0m option-ext v0.2.0
-[1m[92m   Compiling[0m khronos_api v3.1.0
-[1m[92m   Compiling[0m wayland-client v0.31.15
-[1m[92m   Compiling[0m adler2 v2.0.1
-[1m[92m   Compiling[0m drm-sys v0.8.1
-[1m[92m   Compiling[0m dirs-sys v0.5.0
-[1m[92m   Compiling[0m toml v0.9.12+spec-1.1.0
-[1m[92m   Compiling[0m zvariant_derive v5.15.0
-[1m[92m   Compiling[0m event-listener-strategy v0.5.4
-[1m[91merror[0m: failed to run custom build command for `libspa-sys v0.10.1`
+[1m[91merror[E0308][0m[1m: `if` and `else` have incompatible types[0m
+   [1m[94m--> [0msrc/tools/system.rs:249:17
+    [1m[94m|[0m
+[1m[94m242[0m [1m[94m|[0m                 let level = if let Some(idx) = stdout.find("volume:") {
+    [1m[94m|[0m [1m[94m ___________________________-[0m
+[1m[94m243[0m [1m[94m|[0m [1m[94m|[0m                   let rest = &stdout[idx + 7..];
+[1m[94m244[0m [1m[94m|[0m [1m[94m|[0m [1m[94m/[0m                 rest.split_whitespace()
+[1m[94m245[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .next()
+[1m[94m246[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .and_then(|s| s.trim_start_matches('[').trim_end_matches(']').parse::<f64>().ok())
+[1m[94m247[0m [1m[94m|[0m [1m[94m|[0m [1m[94m|[0m                     .map(|v| (v * 100.0).round() as u64)
+    [1m[94m|[0m [1m[94m|[0m [1m[94m|________________________________________________________-[0m [1m[94mexpected because of this[0m
+[1m[94m248[0m [1m[94m|[0m [1m[94m|[0m               } else {
+[1m[94m249[0m [1m[94m|[0m [1m[94m|[0m [1m[91m/[0m                 stdout
+[1m[94m250[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .split(|c: char| c == ' ' || c == '\n')
+[1m[94m251[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
+[1m[94m252[0m [1m[94m|[0m [1m[94m|[0m [1m[91m|[0m                     .unwrap_or(0)
+    [1m[94m|[0m [1m[94m|[0m [1m[91m|_________________________________^[0m [1m[91mexpected `Option<u64>`, found `u64`[0m
+[1m[94m253[0m [1m[94m|[0m [1m[94m|[0m               };
+    [1m[94m|[0m [1m[94m|_______________-[0m [1m[94m`if` and `else` have incompatible types[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: expected enum `[1m[35mstd::option::Option<u64>[0m`
+               found type `[1m[35mu64[0m`
+[1m[96mhelp[0m: try wrapping the expression in `Some`
+    [1m[94m|[0m
+[1m[94m249[0m [92m~ [0m                [92mSome([0mstdout
+[1m[94m250[0m [1m[94m|[0m                     .split(|c: char| c == ' ' || c == '\n')
+[1m[94m251[0m [1m[94m|[0m                     .find_map(|tok| tok.trim_end_matches('%').parse::<u64>().ok())
+[1m[94m252[0m [92m~ [0m                    .unwrap_or(0)[92m)[0m
+    [1m[94m|[0m
 
-Caused by:
-  process didn't exit successfully: `/home/runner/work/pluto/pluto/src-tauri/target/release/build/libspa-sys-0b7861f7963d749f/build-script-build` (exit status: 101)
-  --- stdout
-  cargo:rerun-if-changed=/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libspa-sys-0.10.1/Cargo.toml
-  cargo:rerun-if-env-changed=LIBPIPEWIRE_0.3_NO_PKG_CONFIG
-  cargo:rerun-if-env-changed=PKG_CONFIG_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG
-  cargo:rerun-if-env-changed=PKG_CONFIG
-  cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_PATH_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_PATH
-  cargo:rerun-if-env-changed=PKG_CONFIG_PATH
-  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_LIBDIR
-  cargo:rerun-if-env-changed=PKG_CONFIG_LIBDIR
-  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64-unknown-linux-gnu
-  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu
-  cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
-  cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
+[1m[91merror[E0061][0m[1m: this method takes 2 arguments but 0 arguments were supplied[0m
+   [1m[94m--> [0msrc/tools/system.rs:350:9
+    [1m[94m|[0m
+[1m[94m350[0m [1m[94m|[0m     sys.refresh_processes();
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^[0m[1m[94m--[0m [1m[94mtwo arguments of type `ProcessesToUpdate<'_>` and `bool` are missing[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: method defined here
+   [1m[94m--> [0m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sysinfo-0.35.2/src/common/system.rs:307:12
+    [1m[94m|[0m
+[1m[94m307[0m [1m[94m|[0m     pub fn refresh_processes(
+    [1m[94m|[0m            [1m[92m^^^^^^^^^^^^^^^^^[0m
+[1m[96mhelp[0m: provide the arguments
+    [1m[94m|[0m
+[1m[94m350[0m [1m[94m| [0m    sys.refresh_processes([92m/* ProcessesToUpdate<'_> */, /* bool */[0m);
+    [1m[94m|[0m                           [92m+++++++++++++++++++++++++++++++++++++++[0m
 
-  --- stderr
+[1m[91merror[E0277][0m[1m: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `FromResidual`)[0m
+   [1m[94m--> [0msrc/tools/terminal.rs:179:69
+    [1m[94m|[0m
+[1m[94m162[0m [1m[94m|[0m pub fn execute_command(arguments: &Value) -> ToolResult {
+    [1m[94m|[0m [1m[94m-------------------------------------------------------[0m [1m[94mthis function should return `Result` or `Option` to accept `?`[0m
+[1m[94m...[0m
+[1m[94m179[0m [1m[94m|[0m                 .map_err(|e| ToolResult::fail("execute_command", e))?,
+    [1m[94m|[0m                                                                     [1m[91m^[0m [1m[91mcannot use the `?` operator in a function that returns `ToolResult`[0m
 
-  thread 'main' (14946) panicked at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libspa-sys-0.10.1/build.rs:10:10:
-  Cannot find libraries: PkgConfig(
-  pkg-config exited with status code 1
-  > PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 pkg-config --libs --cflags libpipewire-0.3 'libpipewire-0.3 >= 0.3'
+[1m[91merror[E0382][0m[1m: use of moved value: `best`[0m
+   [1m[94m--> [0msrc/nlu.rs:245:5
+    [1m[94m|[0m
+[1m[94m239[0m [1m[94m|[0m     let mut best: Option<(usize, String)> = None;
+    [1m[94m|[0m         [1m[94m--------[0m [1m[94mmove occurs because `best` has type `std::option::Option<(usize, std::string::String)>`, which does not implement the `Copy` trait[0m
+[1m[94m240[0m [1m[94m|[0m     for (alias, path) in DIR_ALIASES {
+    [1m[94m|[0m     [1m[94m--------------------------------[0m [1m[94minside of this loop[0m
+[1m[94m241[0m [1m[94m|[0m         if t.contains(alias) && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
+    [1m[94m|[0m                                      [1m[94m---------------------------------[0m [1m[94m`best` moved due to this method call, in previous iteration of loop[0m
+[1m[94m242[0m [1m[94m|[0m             best = Some((alias.len(), expand_home(path)));
+    [1m[94m|[0m             [1m[94m----[0m [1m[94mthis reinitialization might get skipped[0m
+[1m[94m...[0m
+[1m[94m245[0m [1m[94m|[0m     best.map(|(_, p)| p).unwrap_or_else(|| expand_home(default))
+    [1m[94m|[0m     [1m[91m^^^^[0m [1m[91mvalue used here after move[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: `std::option::Option::<T>::map` takes ownership of the receiver `self`, which moves `best`
+   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/option.rs:1158:27
+[1m[96mhelp[0m: you can `clone` the value and consume it, but this might not be your desired behavior
+    [1m[94m|[0m
+[1m[94m241[0m [1m[94m| [0m        if t.contains(alias) && best[92m.clone()[0m.map(|(len, _)| alias.len() > len).unwrap_or(true) {
+    [1m[94m|[0m                                     [92m++++++++[0m
 
-  pkg-config output:
-    Package libpipewire-0.3 was not found in the pkg-config search path.
-    Perhaps you should add the directory containing `libpipewire-0.3.pc'
-    to the PKG_CONFIG_PATH environment variable
-    Package 'libpipewire-0.3', required by 'virtual:world', not found
-    Package 'libpipewire-0.3', required by 'virtual:world', not found
+[1m[33mwarning[0m[1m: unused variable: `text`[0m
+   [1m[94m--> [0msrc/nlu.rs:618:18
+    [1m[94m|[0m
+[1m[94m618[0m [1m[94m|[0m fn greeting_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
+    [1m[94m|[0m                  [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_text`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
-  The system library `libpipewire-0.3` required by crate `libspa-sys` was not found.
-  The file `libpipewire-0.3.pc` needs to be installed and the PKG_CONFIG_PATH environment variable must contain its parent directory.
-  The PKG_CONFIG_PATH environment variable is not set.
+[1m[33mwarning[0m[1m: unused variable: `text`[0m
+   [1m[94m--> [0msrc/nlu.rs:660:16
+    [1m[94m|[0m
+[1m[94m660[0m [1m[94m|[0m fn system_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
+    [1m[94m|[0m                [1m[33m^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_text`[0m
 
-  HINT: if you have installed the library, try setting PKG_CONFIG_PATH to the directory containing `libpipewire-0.3.pc`.
-  )
-  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
+[1m[33mwarning[0m[1m: unused variable: `w`[0m
+   [1m[94m--> [0msrc/nlu.rs:923:35
+    [1m[94m|[0m
+[1m[94m923[0m [1m[94m|[0m fn file_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Vec<PlanItem>> {
+    [1m[94m|[0m                                   [1m[33m^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_w`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `err`[0m
+  [1m[94m--> [0msrc/tools/apps.rs:51:30
+   [1m[94m|[0m
+[1m[94m51[0m [1m[94m|[0m                 Ok((code, _, err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
+   [1m[94m|[0m                              [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_err`[0m
+
+[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
+   [1m[94m--> [0msrc/tools/system.rs:139:15
+    [1m[94m|[0m
+[1m[94m139[0m [1m[94m|[0m         match capture_x11(&path, &area) {
+    [1m[94m|[0m               [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
+   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
+   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: not covered
+    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
+[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    [1m[94m|[0m
+[1m[94m144[0m [92m~ [0m            }[92m,[0m
+[1m[94m145[0m [92m+             Ok(false) => todo!()[0m
+    [1m[94m|[0m
+
+[1m[91merror[E0004][0m[1m: non-exhaustive patterns: `Ok(false)` not covered[0m
+   [1m[94m--> [0msrc/tools/system.rs:149:19
+    [1m[94m|[0m
+[1m[94m149[0m [1m[94m|[0m             match result {
+    [1m[94m|[0m                   [1m[91m^^^^^^[0m [1m[91mpattern `Ok(false)` not covered[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: `Result<bool, std::string::String>` defined here
+   [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:557:0
+   [1m[94m::: [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/result.rs:561:4
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: not covered
+    [1m[94m= [0m[1mnote[0m: the matched value is of type `Result<bool, std::string::String>`
+[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    [1m[94m|[0m
+[1m[94m151[0m [92m~ [0m                Err(e) => return ToolResult::fail("take_screenshot", e)[92m,[0m
+[1m[94m152[0m [92m~                 Ok(false) => todo!()[0m,
+    [1m[94m|[0m
+
+[1m[33mwarning[0m[1m: unused variable: `err`[0m
+   [1m[94m--> [0msrc/tools/system.rs:216:30
+    [1m[94m|[0m
+[1m[94m216[0m [1m[94m|[0m                 Ok((code, _, err)) if code == 0 => {
+    [1m[94m|[0m                              [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_err`[0m
+
+[1m[33mwarning[0m[1m: value assigned to `status` is never read[0m
+   [1m[94m--> [0msrc/tools/terminal.rs:138:22
+    [1m[94m|[0m
+[1m[94m138[0m [1m[94m|[0m     let mut status = None;
+    [1m[94m|[0m                      [1m[33m^^^^[0m [1m[33mthis value is reassigned later and never used[0m
+[1m[94m...[0m
+[1m[94m142[0m [1m[94m|[0m                 status = Some(s);
+    [1m[94m|[0m                 [1m[94m----------------[0m [1m[94m`status` is overwritten here before the previous value is read[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+[1m[91merror[E0716][0m[1m: temporary value dropped while borrowed[0m
+   [1m[94m--> [0msrc/tools/voice.rs:157:9
+    [1m[94m|[0m
+[1m[94m157[0m [1m[94m|[0m         txt_path.with_extension("").to_str().unwrap_or(""),
+    [1m[94m|[0m         [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mcreates a temporary value which is freed while still in use[0m
+[1m[94m158[0m [1m[94m|[0m     ];
+    [1m[94m|[0m      [1m[94m-[0m [1m[94mtemporary value is freed at the end of this statement[0m
+[1m[94m159[0m [1m[94m|[0m     match run_process(&program, &args, 60_000, &[]) {
+    [1m[94m|[0m                                 [1m[94m-----[0m [1m[94mborrow later used here[0m
+    [1m[94m|[0m
+[1m[96mhelp[0m: consider using a `let` binding to create a longer lived value
+    [1m[94m|[0m
+[1m[94m150[0m [92m~ [0m    [92mlet binding = txt_path.with_extension("");[0m
+[1m[94m151[0m [92m~     [0mlet args = [
+[1m[94m152[0m [1m[94m|[0m         "-m",
+[1m[94m...[0m
+[1m[94m157[0m [1m[94m|[0m         "-of",
+[1m[94m158[0m [92m~ [0m        [92mbinding[0m.to_str().unwrap_or(""),
+    [1m[94m|[0m
+
+[1m[91merror[E0382][0m[1m: use of moved value: `message`[0m
+  [1m[94m--> [0msrc/tools/mod.rs:26:75
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m|[0m [1m[94m...[0mol: &str, message: impl Into<String>) -> Self {
+   [1m[94m|[0m              [1m[94m-------[0m [1m[94mmove occurs because `message` has type `impl Into<String>`, which does not implement the `Copy` trait[0m
+[1m[94m26[0m [1m[94m|[0m [1m[94m...[0m { success: false, message: message.into(), error: Some(message.into()), data: json!({ "tool": tool, "success": false }) }
+   [1m[94m|[0m                                        [1m[94m------[0m              [1m[91m^^^^^^^[0m [1m[91mvalue used here after move[0m
+   [1m[94m|[0m                                        [1m[94m|[0m
+   [1m[94m|[0m                                        [1m[94m`message` moved due to this method call[0m
+   [1m[94m|[0m
+[1m[92mnote[0m: `into` takes ownership of the receiver `self`, which moves `message`
+  [1m[94m--> [0m/rustc/48a229ceaefd4985c50990b14116b6d856af0985/library/core/src/convert/mod.rs:456:12
+[1m[96mhelp[0m: consider restricting opaque type `impl Into<String>` with trait `Copy`
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m| [0m    pub fn fail(tool: &str, message: impl Into<String>[92m + std::marker::Copy[0m) -> Self {
+   [1m[94m|[0m                                                        [92m+++++++++++++++++++[0m
+
+[1m[33mwarning[0m[1m: value assigned to `status` is never read[0m
+   [1m[94m--> [0msrc/tools/mod.rs:131:22
+    [1m[94m|[0m
+[1m[94m131[0m [1m[94m|[0m     let mut status = None;
+    [1m[94m|[0m                      [1m[33m^^^^[0m [1m[33mthis value is reassigned later and never used[0m
+[1m[94m...[0m
+[1m[94m135[0m [1m[94m|[0m                 status = Some(s);
+    [1m[94m|[0m                 [1m[94m----------------[0m [1m[94m`status` is overwritten here before the previous value is read[0m
+
+[1mSome errors have detailed explanations: E0004, E0061, E0277, E0308, E0382, E0428, E0599, E0716.[0m
+[1mFor more information about an error, try `rustc --explain E0004`.[0m
+[1m[33mwarning[0m: `pluto` (lib) generated 9 warnings
+[1m[91merror[0m: could not compile `pluto` (lib) due to 18 previous errors; 9 warnings emitted
 failed to build app: failed to build app
        Error failed to build app: failed to build app
 EXIT=1
