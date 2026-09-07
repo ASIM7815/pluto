@@ -2,18 +2,37 @@
 """
 PLUTO Desktop Application Wrapper
 Loads the built static frontend in a native webview window.
-Optionally starts the Python FastAPI backend if available.
+Serves via local HTTP server to properly handle static assets.
 """
 import os
 import sys
 import subprocess
 import time
+import threading
+from bottle import Bottle, static_file
 
 OPT_DIR = "/opt/pluto"
 BACKEND_DIR = os.path.join(OPT_DIR, "pluto-backend")
 OUT_DIR = os.path.join(OPT_DIR, "out")
+PORT = 8899
+
+app = Bottle()
+
+# Serve static files from Next.js out directory
+@app.route('/')
+def index():
+    return static_file('index.html', root=OUT_DIR)
+
+@app.route('/<filepath:path>')
+def serve_static(filepath):
+    return static_file(filepath, root=OUT_DIR)
+
+def start_server():
+    """Start the local HTTP server in background thread"""
+    app.run(host='127.0.0.1', port=PORT, quiet=True)
 
 def start_backend():
+    """Optional: start Python backend if available"""
     venv_python = os.path.join(BACKEND_DIR, "venv", "bin", "python")
     if not os.path.isfile(venv_python):
         return None
@@ -24,7 +43,6 @@ def start_backend():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        # Give backend a moment to initialize
         time.sleep(2)
         return proc
     except Exception as e:
@@ -32,14 +50,18 @@ def start_backend():
         return None
 
 def main():
+    # Start local HTTP server in background thread
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+    
+    # Give server time to start
+    time.sleep(1)
+    
     # Attempt to start backend if installed
     backend_proc = start_backend()
 
-    # Load the static production build
-    url = f"file://{OUT_DIR}/index.html"
-    if not os.path.isfile(os.path.join(OUT_DIR, "index.html")):
-        # Fallback to out/index.html relative path
-        url = "file:///opt/pluto/out/index.html"
+    # Open native window pointing to local server
+    url = f"http://127.0.0.1:{PORT}"
 
     import webview
     window = webview.create_window(
@@ -52,6 +74,7 @@ def main():
     )
     webview.start()
 
+    # Cleanup
     if backend_proc is not None:
         try:
             backend_proc.terminate()
