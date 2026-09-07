@@ -77,7 +77,7 @@ Version: ${VERSION}
 Section: utils
 Priority: optional
 Architecture: ${ARCH}
-Depends: python3 (>= 3.10), python3-pip, python3-gi, gir1.2-gtk-3.0, libgtk-3-0, libwebkit2gtk-4.0-37, libgl1
+Depends: python3 (>= 3.10), python3-pip, python3-gi, gir1.2-gtk-3.0, libgtk-3-0, libwebkit2gtk-4.1-0, libgl1
 Maintainer: PLUTO AI Team <pluto@example.com>
 Description: PLUTO - Real Linux Desktop AI Assistant
  PLUTO is a true Linux desktop application with native window,
