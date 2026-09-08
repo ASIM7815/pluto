@@ -64,13 +64,33 @@ jobs:
         run: |
           set -o pipefail
           cargo test --manifest-path src-tauri/Cargo.toml --lib 2>&1 \
-            | grep -vE "^\\s+Compiling " \
-            | tail -n 80
+            | grep -vE "^\\s+Compiling " | tee /tmp/rust-test.log > /dev/null
+          rc=$?
+          tail -n 120 /tmp/rust-test.log
+          if [ "$rc" -ne 0 ]; then cp /tmp/rust-test.log "$GITHUB_WORKSPACE/ci-rust-errors.log"; fi
+          exit "$rc"
 
       - name: Build Tauri app and Debian package
         run: |
           set -o pipefail
-          npm run build:deb 2>&1 | tail -n 120
+          npm run build:deb 2>&1 | tee /tmp/deb-build.log > /dev/null
+          rc=$?
+          tail -n 120 /tmp/deb-build.log
+          if [ "$rc" -ne 0 ]; then cp /tmp/deb-build.log "$GITHUB_WORKSPACE/ci-deb-errors.log"; fi
+          exit "$rc"
+
+      - name: Commit build diagnostics
+        if: failure()
+        run: |
+          git config user.name "pluto-build"
+          git config user.email "pluto-build@users.noreply.github.com"
+          git add ci-rust-errors.log ci-deb-errors.log 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No diagnostics to commit"
+          else
+            git commit -m "ci: attach build diagnostics"
+            git push origin "HEAD:$GITHUB_REF_NAME" || true
+          fi
 
       - name: Copy / rename .deb artifact
         if: success()
@@ -155,7 +175,9 @@ jobs:
         run: |
           git config user.name "pluto-build"
           git config user.email "pluto-build@users.noreply.github.com"
+          rm -f ci-rust-errors.log ci-deb-errors.log
           git add dist/Pluto_1.0.0_amd64.deb src-tauri/Cargo.lock
+          git add -u ci-rust-errors.log ci-deb-errors.log 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No build artifacts to commit"
           else
