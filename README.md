@@ -52,6 +52,27 @@ pluto                                            # launch from terminal or the a
 
 After installation nothing else is needed: no Python, no Node, no pip/venv, no server. See `INSTALL.md`.
 
+## Verification
+
+The GitHub Actions workflow (`.github/workflows/build.yml`) builds and tests
+every push to this branch:
+
+1. TypeScript type check + `next build` static export
+2. `cargo test` — NLU routing, terminal safety, voice
+3. Tauri release build → `Pluto_1.0.0_amd64.deb`
+4. **Installs the real `.deb` with apt** (resolves its `Depends`), verifies
+   `/usr/bin/pluto`, `/usr/share/applications/Pluto.desktop` (`Exec=pluto`)
+   and the hicolor icons, launches the installed app under Xvfb for 12 s and
+   screenshots it
+5. Dev-binary GUI smoke under Xvfb (app alive 12 s + screenshot)
+6. Rust smoke tests: real clipboard round-trip, X11 screenshot capture, and
+   the full file tool chain (create/read/list/copy/move/find/delete)
+7. Uploads the `.deb` as the `pluto-deb` artifact and commits it back to
+   `dist/Pluto_1.0.0_amd64.deb`
+
+Latest build: `Pluto_1.0.0_amd64.deb`
+SHA-256: `3e72991ebca69bf847227d1fee50752ccd62c0f38b6f904e854b7eaa2358efb3`
+
 ## Docs
 
 - `ARCHITECTURE.md` — component map and IPC contract
