@@ -62,31 +62,27 @@ jobs:
 
       - name: Rust unit tests
         run: |
-          set -o pipefail
-          cargo test --manifest-path src-tauri/Cargo.toml --lib 2>&1 \
-            | grep -vE "^\\s+Compiling " | tee /tmp/rust-test.log > /dev/null
+          set +e
+          cargo test --manifest-path src-tauri/Cargo.toml --lib > /tmp/rust-test.log 2>&1
           rc=$?
-          tail -n 60 /tmp/rust-test.log
+          tail -n 40 /tmp/rust-test.log
           if [ "$rc" -ne 0 ]; then
-            # Compact diagnostics: error blocks, assertion failures, summary.
             {
-              grep -nE -A4 -B1 "error\\[|^error:|^error |panicked at|assertion .*failed|^failures:|test result:|^warning:" /tmp/rust-test.log
+              grep -nE "error\\[|^error:|^error |panicked at|assertion .*failed|^failures:|test result:|^warning:" /tmp/rust-test.log
               echo "--- tail ---"
-              tail -n 30 /tmp/rust-test.log
-            } | head -n 200 > /tmp/diag-rust.txt
-            cp /tmp/diag-rust.txt /tmp/diag-1.txt
+              tail -n 40 /tmp/rust-test.log
+            } > /tmp/diag-1.txt 2>/dev/null
           fi
           exit "$rc"
 
       - name: Build Tauri app and Debian package
         run: |
-          set -o pipefail
-          npm run build:deb 2>&1 | tee /tmp/deb-build.log > /dev/null
+          set +e
+          npm run build:deb > /tmp/deb-build.log 2>&1
           rc=$?
-          tail -n 60 /tmp/deb-build.log
+          tail -n 40 /tmp/deb-build.log
           if [ "$rc" -ne 0 ]; then
-            tail -n 200 /tmp/deb-build.log > /tmp/diag-deb.txt
-            cp /tmp/diag-deb.txt /tmp/diag-1.txt
+            tail -n 200 /tmp/deb-build.log > /tmp/diag-1.txt 2>/dev/null
           fi
           exit "$rc"
 
@@ -98,10 +94,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set +e
           diag=""
           if [ -f /tmp/diag-1.txt ]; then diag=/tmp/diag-1.txt; fi
           if [ -z "$diag" ]; then
-            echo "No diagnostics captured"
+            echo "::warning::No diagnostics captured"
             exit 0
           fi
           {
@@ -111,14 +108,17 @@ jobs:
             head -c 25000 "$diag"
             echo '```'
           } > /tmp/body.md
+          echo "Posting comment..."
           gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
-            -F "body=$(cat /tmp/body.md)" >/dev/null 2>&1 && echo "Comment posted" || echo "Comment failed - falling back to git"
+            -F "body=$(cat /tmp/body.md)" 2>&1 | head -c 500
+          echo ""
+          echo "Pushing diag file..."
           cp "$diag" "ci-diag-${{ github.sha }}.log"
           git config user.name "pluto-build"
           git config user.email "pluto-build@users.noreply.github.com"
           git add "ci-diag-${{ github.sha }}.log"
-          git commit -m "ci: build diagnostics for ${{ github.sha }}" >/dev/null 2>&1 || true
-          git push origin "HEAD:$GITHUB_REF_NAME" 2>&1 || echo "Diagnostics push failed"
+          git commit -m "ci: build diagnostics for ${{ github.sha }}"
+          git push origin "HEAD:$GITHUB_REF_NAME" 2>&1 | head -c 500
 
       - name: Copy / rename .deb artifact
         if: success()
