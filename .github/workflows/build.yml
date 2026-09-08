@@ -99,6 +99,35 @@ jobs:
           cp "$DEB" dist/Pluto_1.0.0_amd64.deb
           ls -lh dist/
 
+      - name: Install the real .deb and launch from /usr/bin
+        if: success()
+        run: |
+          set -e
+          # Install through apt (resolves the package's declared dependencies)
+          sudo apt-get install -y ./dist/Pluto_1.0.0_amd64.deb
+          dpkg -s pluto | grep -E "^(Package|Version|Status):"
+          test -x /usr/bin/pluto && echo "BINARY_OK: /usr/bin/pluto"
+          test -f /usr/share/applications/Pluto.desktop && echo "DESKTOP_OK: Pluto.desktop"
+          grep -q "Exec=pluto" /usr/share/applications/Pluto.desktop && echo "DESKTOP_EXEC_OK"
+          test -f /usr/share/icons/hicolor/512x512/apps/pluto.png && echo "ICON_OK: 512x512 pluto.png"
+          xvfb-run -a -s "-screen 0 1280x900x24" bash -c '
+            export WEBKIT_DISABLE_COMPOSITING_MODE=1
+            /usr/bin/pluto > /tmp/pluto-installed.log 2>&1 &
+            APP_PID=$!
+            sleep 12
+            if kill -0 "$APP_PID" 2>/dev/null; then
+              echo "INSTALLED_APP_ALIVE after 12s"
+              scrot /tmp/pluto_installed.png && echo "INSTALLED_SCREENSHOT_OK"
+              kill "$APP_PID"
+            else
+              echo "INSTALLED_APP_EXITED_EARLY"
+              cat /tmp/pluto-installed.log || true
+              exit 1
+            fi
+          '
+          sudo apt-get remove -y pluto >/dev/null 2>&1 || true
+          echo "INSTALL_TEST_DONE"
+
       - name: Smoke test GUI under Xvfb
         if: success()
         run: |
