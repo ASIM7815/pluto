@@ -61,10 +61,16 @@ jobs:
         run: npm run build
 
       - name: Rust unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+        run: |
+          set -o pipefail
+          cargo test --manifest-path src-tauri/Cargo.toml --lib 2>&1 \
+            | grep -vE "^\\s+Compiling " \
+            | tail -n 80
 
       - name: Build Tauri app and Debian package
-        run: npm run build:deb
+        run: |
+          set -o pipefail
+          npm run build:deb 2>&1 | tail -n 120
 
       - name: Copy / rename .deb artifact
         if: success()
