@@ -57,9 +57,9 @@ export default function ChatPage() {
   const appendedRef = useRef(false);
   const streamRef = useRef<HTMLDivElement | null>(null);
 
-  // Connect to the backend when the chat opens.
+  // Connect to the Rust backend when the chat opens.
   useEffect(() => {
-    aiService.connectWebSocket();
+    void aiService.connectEvents();
   }, []);
 
   // Show PLUTO's REAL responses (from the agent pipeline) as chat bubbles.

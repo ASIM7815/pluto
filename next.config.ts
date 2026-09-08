@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Note: rewrites are not supported with static export.
-  // The desktop launcher uses a local proxy server to forward /api/backend/*.
+  // PLUTO is a Tauri desktop app: the frontend is a static Next.js export
+  // loaded by the native webview - no local server is used at runtime.
 };
 
 export default nextConfig;

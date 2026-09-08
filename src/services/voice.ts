@@ -1,8 +1,7 @@
 import { usePlutoStore } from "@/store/plutoStore";
 import { aiService } from "./ai";
 import { cancelSpeech } from "./tts";
-
-const REST_BASE = "/api/backend";
+import { call, isTauriApp } from "@/services/ipc";
 
 export interface VoiceInfo {
   voice_id: string;
@@ -37,7 +36,7 @@ let interimText = "";
 let networkRetries = 0;
 let sessionEpoch = 0; // invalidates callbacks from dead sessions
 
-// Server-side STT (used when the Web Speech API is unavailable/blocked).
+// Rust-side STT (used when the Web Speech API is unavailable/blocked).
 let backendSttChecked = false;
 let backendSttAvailable = false;
 
@@ -84,8 +83,8 @@ function dispatchCommand(rawText: string): void {
       store.isExecuting ||
       !["idle", "listening", "error", "success"].includes(store.state);
     if (taskRunning) {
-      // A task is mid-flight: full interrupt (stops speech + WS task). The
-      // mic session itself stays engaged so the conversation continues.
+      // A task is mid-flight: full interrupt (stops speech + IPC task).
+      // The mic session itself stays engaged so the conversation continues.
       const wasEngaged = store.voiceEngaged;
       aiService.cancelAction();
       if (wasEngaged) {
@@ -185,7 +184,7 @@ function startWebSpeech(epoch: number): void {
       case "not-allowed":
       case "service-not-allowed":
         reportVoiceError(
-          "Microphone access is blocked. Click the lock icon in the address bar, allow the microphone, then press the mic button again.",
+          "Microphone access is blocked. Allow the microphone in your desktop environment, then press the mic button again.",
           true
         );
         usePlutoStore.getState().setVoiceEngaged(false);
@@ -203,17 +202,17 @@ function startWebSpeech(epoch: number): void {
         break;
       case "network":
         // Chrome's speech backend is unreachable. Retry a few times, then
-        // fall back to server-side STT when PLUTO's backend supports it.
+        // fall back to Rust-side STT when PLUTO supports it.
         networkRetries++;
         if (networkRetries <= MAX_NETWORK_RETRIES) {
           scheduleRestart(true);
         } else if (backendSttChecked && backendSttAvailable) {
           reportVoiceError(
-            "Browser speech service unreachable - switching to PLUTO's server-side transcription.",
+            "Browser speech service unreachable - switching to PLUTO's Rust transcription.",
             false
           );
           teardownSession();
-          startRecorderFallback();
+          void startRecorderFallback();
         } else {
           reportVoiceError(
             "The browser speech service is unreachable (offline?). Check your internet connection and try again.",
@@ -261,7 +260,7 @@ function scheduleRestart(silent = false): void {
 }
 
 // ---------------------------------------------------------------------------
-// Fallback engine: MediaRecorder + PLUTO backend transcription
+// Fallback engine: MediaRecorder + Rust STT command
 // ---------------------------------------------------------------------------
 interface RecorderSession {
   recorder: MediaRecorder;
@@ -277,12 +276,10 @@ let recorderSession: RecorderSession | null = null;
 async function ensureBackendStt(): Promise<boolean> {
   if (backendSttChecked) return backendSttAvailable;
   backendSttChecked = true;
+  if (!isTauriApp()) return false;
   try {
-    const res = await fetch(`${REST_BASE}/voice/stt-status`);
-    if (res.ok) {
-      const data = (await res.json()) as { available?: boolean };
-      backendSttAvailable = Boolean(data.available);
-    }
+    const data = await call<{ available?: boolean }>("pluto_stt_status");
+    backendSttAvailable = Boolean(data.available);
   } catch {
     backendSttAvailable = false;
   }
@@ -313,7 +310,7 @@ async function startRecorderFallback(): Promise<void> {
   const ok = await ensureBackendStt();
   if (!ok) {
     reportVoiceError(
-      "Voice input is not supported by this browser and PLUTO's backend has no STT engine. Use Chrome/Edge (recommended) or run: pip install faster-whisper SpeechRecognition && install ffmpeg.",
+      "Voice input is not supported by this browser and the Rust STT engine is not installed (install whisper-cli/whisper.cpp on PATH for offline transcription). Use Chrome/Edge for the Web Speech engine.",
       true
     );
     store.setVoiceEngaged(false);
@@ -335,7 +332,7 @@ async function startRecorderFallback(): Promise<void> {
     const denied = e instanceof DOMException && e.name === "NotAllowedError";
     reportVoiceError(
       denied
-        ? "Microphone access is blocked. Allow the microphone for this site, then press the mic button again."
+        ? "Microphone access is blocked. Allow the microphone for this app, then press the mic button again."
         : "Could not open the microphone. Check that no other app is using it.",
       true
     );
@@ -424,23 +421,11 @@ async function startRecorderFallback(): Promise<void> {
 async function transcribeBlob(blob: Blob, epoch: number): Promise<void> {
   const store = usePlutoStore.getState();
   try {
-    const form = new FormData();
-    form.append("file", blob, "speech.webm");
-    const res = await fetch(`${REST_BASE}/voice/transcribe`, {
-      method: "POST",
-      body: form,
-    });
-    if (res.status === 503) {
-      reportVoiceError(
-        "PLUTO's backend has no STT engine installed. Run: pip install faster-whisper (or SpeechRecognition) and install ffmpeg.",
-        true
-      );
-      store.setVoiceEngaged(false);
-      store.setState("idle");
-      return;
-    }
-    if (!res.ok) throw new Error(`transcribe failed (${res.status})`);
-    const data = (await res.json()) as { text?: string; heard_speech?: boolean };
+    const bytes = Array.from(new Uint8Array(await blob.arrayBuffer()));
+    const data = await call<{ text?: string; heard_speech?: boolean }>(
+      "pluto_stt_transcribe",
+      { audio: bytes, mime: blob.type || "audio/webm" }
+    );
     const text = (data.text || "").trim();
     if (epoch !== sessionEpoch) return;
     if (!text || !data.heard_speech) {
@@ -492,13 +477,13 @@ export const voiceService = {
     if (SR) {
       startWebSpeech(++sessionEpoch);
     } else if (!(typeof window !== "undefined" && window.isSecureContext === false)) {
-      // No Web Speech API (e.g. Firefox): record + transcribe on the backend.
+      // No Web Speech API (e.g. Tauri WebKit, Firefox): Rust STT fallback.
       void startRecorderFallback();
     } else {
       isVoiceActive = false;
       store.setListening(false);
       reportVoiceError(
-        "Voice input requires a secure page (https or localhost). Open PLUTO on localhost or enable HTTPS.",
+        "Voice input requires a secure page (https or localhost). Open PLUTO in the Tauri app or enable HTTPS.",
         true
       );
       store.setState("idle");
@@ -545,7 +530,7 @@ export const voiceService = {
     if (!store.autoListen || !store.voiceEngaged) return;
     if (store.isSpeaking || store.isExecuting || isVoiceActive) return;
     if (!recognitionSupported && !(backendSttChecked && backendSttAvailable)) {
-      // Backend fallback will be re-checked on demand; nothing to arm now.
+      // Rust fallback will be re-checked on demand; nothing to arm now.
       if (!recognitionSupported) return;
     }
     setTimeout(() => {
@@ -556,24 +541,30 @@ export const voiceService = {
     }, 450);
   },
 
-  // TTS via backend (ElevenLabs when configured; audio blob). Browser TTS is
-  // handled in tts.ts when no audio is attached to a speak event.
+  /**
+   * TTS via the Rust backend (espeak-ng / local voice; base64 audio).
+   * Browser speechSynthesis is used when no audio is produced.
+   */
   async synthesizeSpeech(text: string): Promise<void> {
     try {
-      const response = await fetch(`${REST_BASE}/voice/synthesize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (response.ok) {
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        audio.onended = () => URL.revokeObjectURL(audioUrl);
-        await audio.play();
-      } else {
-        await import("./tts").then((m) => m.speak(text, null));
+      if (isTauriApp()) {
+        const data = await call<{ audio_base64?: string; mime?: string; engine?: string }>(
+          "pluto_tts_synthesize",
+          { text }
+        );
+        if (data.audio_base64) {
+          const audioUrl = URL.createObjectURL(
+            new Blob([Uint8Array.from(atob(data.audio_base64), (c) => c.charCodeAt(0))], {
+              type: data.mime || "audio/wav",
+            })
+          );
+          const audio = new Audio(audioUrl);
+          audio.onended = () => URL.revokeObjectURL(audioUrl);
+          await audio.play();
+          return;
+        }
       }
+      await import("./tts").then((m) => m.speak(text, null));
     } catch (error) {
       console.error("TTS error:", error);
       await import("./tts").then((m) => m.speak(text, null));
@@ -582,9 +573,8 @@ export const voiceService = {
 
   async getAvailableVoices(): Promise<VoiceInfo[]> {
     try {
-      const response = await fetch(`${REST_BASE}/voice/voices`);
-      if (response.ok) {
-        const data = (await response.json()) as { voices?: VoiceInfo[] };
+      if (isTauriApp()) {
+        const data = await call<{ voices?: VoiceInfo[] }>("pluto_tts_voices");
         return data.voices || [];
       }
     } catch (error) {

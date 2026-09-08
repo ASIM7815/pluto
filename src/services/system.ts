@@ -1,6 +1,5 @@
 import { SystemMetrics } from "@/types";
-
-const REST_BASE = "/api/backend";
+import { call, isTauriApp } from "@/services/ipc";
 
 let currentMetrics: SystemMetrics = {
   cpu: 23,
@@ -9,62 +8,59 @@ let currentMetrics: SystemMetrics = {
   gpu: 14,
   temp: 42,
   networkUp: "1.2 MB/s",
-  networkDown: "8.4 MB/s"
+  networkDown: "8.4 MB/s",
 };
+
+export interface SystemInfo {
+  os: string;
+  distro: string;
+  host: string;
+  uptime: string;
+  securityStatus: string;
+  voiceEngine: string;
+  llmEngine: string;
+}
 
 export const systemService = {
   async getMetrics(): Promise<SystemMetrics> {
-    try {
-      // Try to fetch real metrics from backend
-      const response = await fetch(`${REST_BASE}/system/metrics`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const metrics = await response.json();
+    if (isTauriApp()) {
+      try {
+        const metrics = await call<SystemMetrics>("pluto_get_system_metrics");
         currentMetrics = metrics;
         return metrics;
+      } catch {
+        // fall through to fluctuation below
       }
-    } catch {
-      console.log("⚠️ Using mock metrics (backend not available)");
     }
 
-    // Fallback: Add subtle fluctuation to mock data
+    // Browser/preview fallback: subtle fluctuation so the UI stays alive.
     const cpuDelta = (Math.random() - 0.5) * 4;
     const ramDelta = (Math.random() - 0.5) * 2;
-    
     currentMetrics = {
       ...currentMetrics,
       cpu: Math.min(99, Math.max(12, Math.round(currentMetrics.cpu + cpuDelta))),
       ram: Math.min(95, Math.max(30, Math.round(currentMetrics.ram + ramDelta))),
-      gpu: Math.min(90, Math.max(8, Math.round(14 + (Math.random() - 0.5) * 6)))
+      gpu: Math.min(90, Math.max(8, Math.round(14 + (Math.random() - 0.5) * 6))),
     };
-
     return currentMetrics;
   },
 
-  async getSystemInfo() {
-    try {
-      const response = await fetch(`${REST_BASE}/system/info`);
-      if (response.ok) {
-        return await response.json();
+  async getSystemInfo(): Promise<SystemInfo> {
+    if (isTauriApp()) {
+      try {
+        return await call<SystemInfo>("pluto_get_system_info");
+      } catch {
+        // fallback below
       }
-    } catch {
-      console.log("⚠️ Using mock system info");
     }
-
-    // Fallback mock data
     return {
       os: "Linux x86_64",
-      distro: "Ubuntu 26.04 LTS (PLUTO Kernel 6.12.4)",
-      host: "PLUTO-DESKTOP-NEO",
+      distro: "Debian GNU/Linux (PLUTO Desktop)",
+      host: "PLUTO-DESKTOP",
       uptime: "4h 38m",
       securityStatus: "Encrypted & Isolated",
-      voiceEngine: "PLUTO ElevenLabs TTS",
-      llmEngine: "GPT-OSS Llama 3.3 70B"
+      voiceEngine: "PLUTO Local TTS",
+      llmEngine: "PLUTO Pattern Intelligence (on-device)",
     };
-  }
+  },
 };

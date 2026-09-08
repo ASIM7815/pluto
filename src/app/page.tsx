@@ -54,10 +54,10 @@ export default function HomePage() {
   const confidence = usePlutoStore((s) => s.confidence);
   const recommendedTools = usePlutoStore((s) => s.recommendedTools);
 
-  // Connect to backend WebSocket on mount
+  // Connect to the Rust backend (Tauri IPC) on mount
   useEffect(() => {
-    console.log("🚀 Connecting to PLUTO backend...");
-    aiService.connectWebSocket();
+    console.log("🚀 Connecting to PLUTO Rust backend...");
+    void aiService.connectEvents();
   }, []);
 
   return (
