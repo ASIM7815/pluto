@@ -77,23 +77,14 @@ jobs:
           exit 0
 
       - name: Publish CI diagnostics on failure
-        if: failure() || !cancelled()
+        if: failure()
         run: |
-          git config user.name "pluto-build"
-          git config user.email "pluto-build@users.noreply.github.com"
-          {
-            echo "===== cargo test ====="
-            cat /tmp/pluto-ci/rust-test.log 2>/dev/null | tail -n 300
-            echo ""
-            echo "===== tauri build ====="
-            cat /tmp/pluto-ci/tauri-build.log 2>/dev/null | tail -n 400
-          } > build-errors.txt
-          git add -f build-errors.txt
-          git commit -m "ci: rust build diagnostics" || true
-          git push origin HEAD:${{ github.ref_name }} || true
           echo "Cargo test status: $(cat /tmp/pluto-ci/cargo-test-status 2>/dev/null)"
           echo "Tauri build status: $(cat /tmp/pluto-ci/tauri-build-status 2>/dev/null)"
-          echo "FAILING"
+          echo "----- cargo test tail -----"
+          tail -n 120 /tmp/pluto-ci/rust-test.log 2>/dev/null
+          echo "----- tauri build tail -----"
+          tail -n 120 /tmp/pluto-ci/tauri-build.log 2>/dev/null
           exit 1
 
       - name: Copy / rename .deb artifact

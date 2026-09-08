@@ -355,10 +355,22 @@ fn site_from_url(url: &str) -> String {
     String::new()
 }
 
+/// Word-boundary aware match: single-letter / short aliases (e.g. "x" for
+/// Twitter) must not match inside longer words ("example").
+fn word_match(text: &str, key: &str) -> bool {
+    if key.len() <= 2 {
+        Regex::new(&format!(r"\b{}\b", regex::escape(key)))
+            .map(|re| re.is_match(text))
+            .unwrap_or(false)
+    } else {
+        text.contains(key)
+    }
+}
+
 fn site_keyword(rest: &str) -> Option<String> {
     let r = norm(rest);
     for (key, _) in SITE_URLS.iter().rev() {
-        if r.contains(key) {
+        if word_match(&r, key) {
             return Some((*key).to_string());
         }
     }
@@ -372,7 +384,11 @@ fn normalize_url(text: &str) -> String {
     }
     let lower = text.to_lowercase();
     for (site, url) in SITE_URLS {
-        if lower.contains(site) {
+        if site.len() <= 2 {
+            if Regex::new(&format!(r"\b{}\b", regex::escape(site))).map(|re| re.is_match(&lower)).unwrap_or(false) {
+                return url.to_string();
+            }
+        } else if lower.contains(site) {
             return url.to_string();
         }
     }
@@ -393,7 +409,14 @@ pub fn app_alias(text: &str) -> Option<String> {
     let t = norm(text);
     let mut best: Option<(usize, &str)> = None;
     for (alias, executable) in APP_MAPPINGS {
-        if t.contains(alias) && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
+        let matched = if alias.len() <= 2 {
+            Regex::new(&format!(r"\b{}\b", regex::escape(alias)))
+                .map(|re| re.is_match(&t))
+                .unwrap_or(false)
+        } else {
+            t.contains(alias)
+        };
+        if matched && best.map(|(len, _)| alias.len() > len).unwrap_or(true) {
             best = Some((alias.len(), executable));
         }
     }
@@ -408,10 +431,10 @@ fn is_app_or_site_ref(cmd: &str) -> bool {
     if app_alias(&w).is_some() {
         return true;
     }
-    if KNOWN_WEBSITES.iter().any(|(k, _)| w.contains(k)) {
+    if KNOWN_WEBSITES.iter().any(|(k, _)| word_match(&w, k)) {
         return true;
     }
-    SITE_URLS.iter().any(|(k, _)| w.contains(k))
+    SITE_URLS.iter().any(|(k, _)| word_match(&w, k))
 }
 
 fn resolve_candidate(name: &str, ctx: &SessionContext) -> String {
