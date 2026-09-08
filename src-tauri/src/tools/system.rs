@@ -213,7 +213,7 @@ pub fn set_volume(arguments: &Value) -> ToolResult {
         Some(program_path) => {
             let all_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
             match run_process(&program_path, &all_args, 10_000, &[]) {
-                Ok((code, _, err)) if code == 0 => {
+                Ok((code, _, _err)) if code == 0 => {
                     ToolResult::ok("set_volume", format!("Volume set to {}.", label))
                 }
                 Ok((_, _, err)) => {

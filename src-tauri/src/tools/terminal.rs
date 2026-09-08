@@ -135,24 +135,19 @@ fn run_process_with_cwd(
         })
     });
     let start = std::time::Instant::now();
-    let mut status = None;
-    loop {
+    let status = loop {
         match child.try_wait() {
-            Ok(Some(s)) => {
-                status = Some(s);
-                break;
-            }
+            Ok(Some(s)) => break Some(s),
             _ => {
                 if start.elapsed().as_millis() as u64 >= timeout_ms {
                     let _ = child.kill();
                     let _ = child.wait();
-                    status = None;
-                    break;
+                    break None;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(40));
             }
         }
-    }
+    };
     let out = out_thread.and_then(|h| h.join().ok()).unwrap_or_default();
     let err = err_thread.and_then(|h| h.join().ok()).unwrap_or_default();
     let code = status.map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);

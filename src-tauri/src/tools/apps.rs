@@ -164,7 +164,7 @@ pub fn open_url(arguments: &Value) -> ToolResult {
             }
             args.push(url);
             match run_process(&program, &args, 10_000, &[]) {
-                Ok((code, _, err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
+                Ok((code, _, _err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
                 Ok((_, _, err)) => {
                     let stderr = String::from_utf8_lossy(&err).trim().to_string();
                     let detail = if stderr.is_empty() { "the opener reported an error".to_string() } else { stderr };

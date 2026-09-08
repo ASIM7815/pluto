@@ -16,6 +16,7 @@
 
 use super::{find_program, run_process, ToolResult};
 use base64::Engine;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -481,8 +482,10 @@ impl Downmixer {
     }
 
     /// Feed one frame of interleaved float samples, returning the resampled
-    /// mono output for the frames that should be emitted.
-    fn push_frame<T: cpal::Sample>(&mut self, frame: &[T]) -> Option<f32> {
+    /// mono output for the frames that should be emitted. All cpal sample
+    /// formats (i16/u16/f32) convert to f32 floats, so we pin the associated
+    /// type to `f32` to keep the summing concrete.
+    fn push_frame<T: cpal::Sample<Float = f32>>(&mut self, frame: &[T]) -> Option<f32> {
         let sum: f32 = frame
             .iter()
             .take(self.channels as usize)
@@ -537,12 +540,14 @@ fn capture_pcm(cancel: &AtomicBool, level_tx: &Sender<f32>) -> Result<CapturePcm
         shared: Arc<SharedBuf>,
     ) -> Result<cpal::Stream, cpal::BuildStreamError>
     where
-        T: cpal::SizedSample + cpal::Sample,
+        T: cpal::SizedSample + cpal::Sample<Float = f32>,
     {
         let sink = shared.clone();
+        // The downmixer lives across callbacks so the resampler phase is
+        // preserved between audio chunks (no per-period drift at odd rates).
+        let mut downmixer = Downmixer::new(src_rate, 16_000, channels);
         let err_cb = |err| eprintln!("[PLUTO mic] capture error: {err}");
         let data_cb = move |data: &[T], _: &cpal::InputCallbackInfo| {
-            let mut downmixer = Downmixer::new(src_rate, 16_000, channels);
             let mut out: Vec<i16> = Vec::with_capacity(data.len() / channels as usize);
             let mut frame_start = 0usize;
             while frame_start + channels as usize <= data.len() {
@@ -683,7 +688,7 @@ fn transcribe_audio_bytes(wav: &[u8]) -> ToolResult {
         base.to_str().unwrap_or(""),
     ];
     let result = match run_process(&program, &args, 120_000, &[]) {
-        Ok((code, _, err)) if code == 0 => {
+        Ok((code, _, _err)) if code == 0 => {
             let content = std::fs::read_to_string(&txt).unwrap_or_default();
             let text = content.trim().to_string();
             let _ = std::fs::remove_file(&tmp);
