@@ -1543,12 +1543,13 @@ pub fn command_meta(text: &str, ctx: &SessionContext) -> serde_json::Value {
         let name = step.name.as_str();
         let a = &step.arguments;
         let get = |k: &str| a.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let mut intent = String::new();
         let mut target = String::new();
         let mut platform = String::new();
         let mut query = String::new();
         let mut url = String::new();
-        let mut action = String::new();
+        // `intent` and `action` are assigned in every match arm below.
+        let mut intent: String;
+        let mut action: String;
         match name {
             "browser_search" => {
                 query = get("query");

@@ -564,11 +564,14 @@ fn capture_pcm(cancel: &AtomicBool, level_tx: &Sender<f32>) -> Result<CapturePcm
                 }
             }
         };
-        device.build_input_stream::<T, _, _>(config, data_cb, err_cb)
+        device.build_input_stream::<T, _, _>(config, data_cb, err_cb, None)
     }
 
+    // Read the format before consuming `supported` (cpal 0.15 requires a
+    // StreamConfig conversion that takes ownership).
+    let sample_format = supported.sample_format();
     let config: cpal::StreamConfig = supported.into();
-    let stream = match supported.sample_format() {
+    let stream = match sample_format {
         cpal::SampleFormat::I16 => build_stream::<i16>(&device, &config, src_rate, channels, shared.clone()),
         cpal::SampleFormat::U16 => build_stream::<u16>(&device, &config, src_rate, channels, shared.clone()),
         cpal::SampleFormat::F32 => build_stream::<f32>(&device, &config, src_rate, channels, shared.clone()),
