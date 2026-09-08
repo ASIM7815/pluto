@@ -21,11 +21,42 @@ fn emit(app: &AppHandle, payload: Value) {
     let _ = app.emit("pluto-event", payload);
 }
 
+fn engine_from_url(url: &str) -> Option<String> {
+    let lower = url.to_lowercase();
+    let host = lower
+        .split("://")
+        .nth(1)
+        .unwrap_or("")
+        .split(|c| c == '/' || c == '?')
+        .next()
+        .unwrap_or("")
+        .trim_start_matches("www.");
+    match host {
+        "youtube.com" | "youtu.be" => Some("youtube".into()),
+        "google.com" => Some("google".into()),
+        "bing.com" => Some("bing".into()),
+        "duckduckgo.com" => Some("duckduckgo".into()),
+        "github.com" => Some("github".into()),
+        "reddit.com" => Some("reddit".into()),
+        "wikipedia.org" => Some("wikipedia".into()),
+        "amazon.com" => Some("amazon".into()),
+        _ => None,
+    }
+}
+
 fn set_context_from_args(context: &mut SessionContext, name: &str, args: &Value) {
     match name {
         "open_url" | "browser_search" => {
             if let Some(url) = args.get("url").and_then(|v| v.as_str()) {
                 context.current_url = Some(url.to_string());
+            }
+            // Remember the search platform so a bare follow-up like
+            // "search Avengers" keeps using the same site.
+            let site = args.get("site").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            let engine = site.or_else(|| engine_from_url(url));
+            if let Some(e) = engine {
+                context.last_search_engine = Some(e);
             }
         }
         "browser_click" => {
@@ -62,6 +93,7 @@ fn step_id(i: usize) -> String {
 fn step_label(name: &str, args: &Value) -> String {
     let app_str = |k: &str| args.get(k).and_then(|v| v.as_str()).unwrap_or("");
     match name {
+        "open_browser" => "Open default browser".to_string(),
         "open_application" => format!("Open {}", app_str("application")),
         "close_application" => format!("Close {}", app_str("application")),
         "switch_to_application" => format!("Switch to {}", app_str("application")),
@@ -159,7 +191,7 @@ async fn await_confirmation(app: &AppHandle, state: &AppState, tool: &str, args:
 fn activity_payload(tool: &str, result: &ToolResult) -> Value {
     let category = match tool {
         "open_application" | "close_application" | "switch_to_application" | "list_running_applications" => "app",
-        "open_url" | "browser_search" | "browser_click" | "browser_key" | "browser_snapshot" | "close_browser" => "browser",
+        "open_browser" | "open_url" | "browser_search" | "browser_click" | "browser_key" | "browser_snapshot" | "close_browser" => "browser",
         "create_file" | "create_folder" | "delete_file" | "read_file" | "list_directory" | "move_file" | "copy_file" | "open_file" | "open_folder" | "find_files" => "file",
         "send_message" | "open_chat_app" => "message",
         _ => "system",
@@ -178,13 +210,15 @@ fn activity_payload(tool: &str, result: &ToolResult) -> Value {
 }
 
 async fn speak_text(app: &AppHandle, text: &str) {
-    // Voice is optional: local espeak-ng when present, browser TTS otherwise.
+    // Voice is optional: best local engine (piper/pico2wave/espeak-ng female)
+    // when present, browser speech otherwise - never a crash.
     let tts = tools::voice::tts_synthesize(text);
     let audio = tts.data.get("audio_base64").and_then(|v| v.as_str()).map(|s| s.to_string());
     let engine = tts.data.get("engine").and_then(|v| v.as_str()).unwrap_or("browser").to_string();
+    let mime = tts.data.get("mime").and_then(|v| v.as_str()).unwrap_or("audio/wav").to_string();
     emit(
         app,
-        json!({ "type": "speak", "text": text, "audio": audio, "tts": engine }),
+        json!({ "type": "speak", "text": text, "audio": audio, "tts": engine, "mime": mime }),
     );
 }
 
@@ -241,13 +275,16 @@ pub async fn run(app: AppHandle, command: String) {
         return;
     }
 
-    let intent = steps[0].0.clone();
+    let meta = crate::nlu::command_meta(&command, &ctx);
     let confidence = 0.95;
     let recommended_tools = recommend(&command, &ctx);
+    let mut data = meta;
+    data["confidence"] = json!(confidence);
+    data["recommended_tools"] = json!(recommended_tools);
     emit(&app, json!({
         "type": "agent_state", "state": "planning",
         "task": format!("Planning {} step(s)...", steps.len()),
-        "data": { "intent": intent, "confidence": confidence, "recommended_tools": recommended_tools }
+        "data": data
     }));
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 

@@ -17,6 +17,8 @@ pub struct AppState {
     pub busy: AtomicBool,
     /// Cooperative cancellation for the running task.
     pub cancel: Arc<AtomicBool>,
+    /// Cancellation flag for an in-progress native microphone capture.
+    pub mic_cancel: Arc<AtomicBool>,
     /// Confirmation gate for CONFIRM_REQUIRED tools.
     pub pending: Mutex<Option<PendingConfirmation>>,
     /// Session-scoped conversational context (recent files, cwd, URL...).

@@ -69,5 +69,6 @@ export interface SpeakEvent {
   type: "speak";
   text: string;
   audio?: string | null; // base64-encoded audio bytes, or null => use browser TTS
-  tts: "elevenlabs" | "browser" | "local_tts";
+  tts: "piper" | "pico2wave" | "espeak-ng" | "espeak" | "browser" | "local_tts";
+  mime?: string;
 }

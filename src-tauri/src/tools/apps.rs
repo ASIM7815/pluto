@@ -34,26 +34,162 @@ pub fn resolve_app(application: &str) -> String {
         .unwrap_or_else(|| application.trim().split_whitespace().next().unwrap_or("").to_string())
 }
 
+// ---------------------------------------------------------------------------
+// Browser launching (never fails silently)
+// ---------------------------------------------------------------------------
+
+/// Common Linux browser executables, most-likely first.
+const BROWSER_CANDIDATES: &[&str] = &[
+    "google-chrome",
+    "google-chrome-stable",
+    "chromium",
+    "chromium-browser",
+    "brave-browser",
+    "microsoft-edge",
+    "microsoft-edge-stable",
+    "firefox",
+    "firefox-esr",
+    "epiphany",
+    "falkon",
+    "vivaldi-stable",
+    "opera",
+    "qutebrowser",
+];
+
+fn default_browser_binary() -> Option<PathBuf> {
+    // 1) $BROWSER (xdg convention, colon separated).
+    if let Ok(browser) = std::env::var("BROWSER") {
+        for candidate in browser.split(':') {
+            let candidate = candidate.trim();
+            if !candidate.is_empty() {
+                if let Some(p) = find_program(candidate) {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    // 2) xdg-settings reports the user's configured default (.desktop id).
+    if let Some(settings) = find_program("xdg-settings") {
+        if let Ok((code, out, _)) = run_process(&settings, &["get", "default-web-browser"], 5_000, &[]) {
+            if code == 0 {
+                let desktop = String::from_utf8_lossy(&out).trim().to_lowercase();
+                let name = desktop.trim_end_matches(".desktop").to_string();
+                if !name.is_empty() {
+                    for candidate in BROWSER_CANDIDATES.iter().copied() {
+                        if name == candidate || name.starts_with(candidate) || candidate.starts_with(&name) {
+                            if let Some(p) = find_program(candidate) {
+                                return Some(p);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // 3) Any installed common browser as a last resort.
+    for candidate in BROWSER_CANDIDATES.iter().copied() {
+        if let Some(p) = find_program(candidate) {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// Open the user's *default* browser (does not assume Firefox/Chrome).
+pub fn open_browser() -> ToolResult {
+    if !has_display() {
+        return ToolResult::fail(
+            "open_browser",
+            "I can't open a browser right now: no graphical display session is available.",
+        );
+    }
+    let program = match default_browser_binary() {
+        Some(p) => p,
+        None => {
+            return ToolResult::fail(
+                "open_browser",
+                "I couldn't open the browser because no default browser is configured and no common browser \
+                 (Chrome, Chromium, Firefox, Brave...) is installed. Install one, or run \
+                 'xdg-settings set default-web-browser <browser>.desktop'.",
+            )
+        }
+    };
+    let name = program
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_else(|| "browser".to_string());
+    match spawn_detached(&program, &["about:blank"]) {
+        Ok(mut child) => {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            // Browsers often run under a shorter process name ("chrome" for
+            // google-chrome) or hand off to an already-running instance.
+            let running = is_process_running(&name)
+                || ["google-chrome", "chrome", "chromium", "chromium-browser", "firefox", "brave-browser", "microsoft-edge"]
+                    .iter()
+                    .any(|b| is_process_running(b));
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            if running {
+                ToolResult::ok("open_browser", format!("Opened your default browser ({}).", name))
+            } else {
+                ToolResult::fail(
+                    "open_browser",
+                    format!("I launched {} but it did not start. Check the browser installation.", name),
+                )
+            }
+        }
+        Err(e) => ToolResult::fail("open_browser", format!("I couldn't open the browser: {}", e)),
+    }
+}
+
 pub fn open_url(arguments: &Value) -> ToolResult {
     let url = arguments.get("url").and_then(|v| v.as_str()).unwrap_or("").trim();
     if url.is_empty() {
         return ToolResult::fail("open_url", "No URL was provided.");
     }
-    match find_program("xdg-open").or_else(|| find_program("gio")) {
+    if !has_display() {
+        return ToolResult::fail(
+            "open_url",
+            format!("I can't open {} right now: no graphical display session is available.", url),
+        );
+    }
+    let has_xdg = find_program("xdg-open").is_some();
+    match find_program("xdg-open").or_else(|| find_program("gio")).or_else(|| find_program("exo-open")) {
         Some(program) => {
             let mut args: Vec<&str> = Vec::new();
-            let gio = program.file_name().and_then(|f| f.to_str()) == Some("gio");
-            if gio {
+            let tool_name = program.file_name().and_then(|f| f.to_str()).unwrap_or("");
+            if tool_name == "gio" {
                 args.push("open");
             }
             args.push(url);
             match run_process(&program, &args, 10_000, &[]) {
                 Ok((code, _, err)) if code == 0 => ToolResult::ok("open_url", format!("Opened {} in your default browser.", url)),
-                Ok((_, _, err)) => ToolResult::fail("open_url", format!("Could not open {}: {}", url, String::from_utf8_lossy(&err).trim())),
-                Err(e) => ToolResult::fail("open_url", format!("Could not open {}: {}", url, e)),
+                Ok((_, _, err)) => {
+                    let stderr = String::from_utf8_lossy(&err).trim().to_string();
+                    let detail = if stderr.is_empty() { "the opener reported an error".to_string() } else { stderr };
+                    let mut message = format!("I couldn't open {}: {}", url, detail.chars().take(200).collect::<String>());
+                    if has_xdg && default_browser_binary().is_none() {
+                        message.push_str(" No default browser appears to be configured - install one or run 'xdg-settings set default-web-browser <browser>.desktop'.");
+                    }
+                    ToolResult::fail("open_url", message)
+                }
+                Err(e) => {
+                    let mut message = format!("I couldn't open {}: {}", url, e);
+                    if default_browser_binary().is_none() {
+                        message.push_str(" No default browser appears to be configured.");
+                    }
+                    ToolResult::fail("open_url", message)
+                }
             }
         }
-        None => ToolResult::fail("open_url", "No desktop opener is installed (xdg-open / gio)."),
+        None => {
+            let mut message = "No desktop opener is installed (xdg-open / gio). Install xdg-utils.".to_string();
+            if default_browser_binary().is_some() {
+                message.push_str(" PLUTO found a browser binary; install xdg-utils so URLs can be handed to it.");
+            }
+            ToolResult::fail("open_url", message)
+        }
     }
 }
 

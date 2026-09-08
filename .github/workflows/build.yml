@@ -48,6 +48,7 @@ jobs:
             libxcb1-dev libxcb-render0-dev libxcb-shm0-dev libxcb-randr0-dev \
             libxdo-dev libxkbcommon-dev libwayland-dev libusb-1.0-0-dev \
             libpipewire-0.3-dev libgbm-dev libdrm-dev libegl-dev \
+            libasound2-dev libclang-dev clang alsa-utils \
             xvfb xdotool imagemagick scrot wmctrl xclip espeak-ng
 
       - name: Install frontend dependencies
@@ -60,32 +61,10 @@ jobs:
         run: npm run build
 
       - name: Rust unit tests
-        run: |
-          mkdir -p /tmp/pluto-ci
-          set +e
-          cargo test --manifest-path src-tauri/Cargo.toml --lib 2>&1 | tee /tmp/pluto-ci/rust-test.log
-          echo "EXIT=${PIPESTATUS[0]}" | tee -a /tmp/pluto-ci/rust-test.log
-          echo "${PIPESTATUS[0]}" > /tmp/pluto-ci/cargo-test-status
-          exit 0
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
       - name: Build Tauri app and Debian package
-        run: |
-          set +e
-          npm run build:deb 2>&1 | tee /tmp/pluto-ci/tauri-build.log
-          echo "EXIT=${PIPESTATUS[0]}" | tee -a /tmp/pluto-ci/tauri-build.log
-          echo "${PIPESTATUS[0]}" > /tmp/pluto-ci/tauri-build-status
-          exit 0
-
-      - name: Publish CI diagnostics on failure
-        if: failure()
-        run: |
-          echo "Cargo test status: $(cat /tmp/pluto-ci/cargo-test-status 2>/dev/null)"
-          echo "Tauri build status: $(cat /tmp/pluto-ci/tauri-build-status 2>/dev/null)"
-          echo "----- cargo test tail -----"
-          tail -n 120 /tmp/pluto-ci/rust-test.log 2>/dev/null
-          echo "----- tauri build tail -----"
-          tail -n 120 /tmp/pluto-ci/tauri-build.log 2>/dev/null
-          exit 1
+        run: npm run build:deb
 
       - name: Copy / rename .deb artifact
         if: success()

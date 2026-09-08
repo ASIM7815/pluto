@@ -24,11 +24,12 @@ Linux OS (file system, X11/Wayland, clipboard, processes, apps)
 | Clipboard | Rust `arboard` — native X11/Wayland clipboard (no xclip/pyperclip) |
 | Files | Create/read/write/list/find/copy/move/delete/open files & folders — sandboxed to the home directory with traversal protection |
 | Applications | Launch, close, switch and list apps (which/pkill/wmctrl) |
-| Browser | Open URLs, search, reload/fullscreen keys, window management |
+| Browser | Open the system default browser (xdg-open / xdg-settings / $BROWSER with clear errors), open any URL or site, engine-aware web search |
 | System | Live CPU/RAM/storage metrics, OS info, process list & kill (gated) |
 | Terminal | Safe argv execution for normal commands; destructive commands require your confirmation and are blocked if truly dangerous; never a blind shell |
-| Assistant | Pattern-based NLU planner: understands "open YouTube and play a song", "create a folder called PLUTO in Projects", "copy 'hello' to clipboard", etc. |
-| Voice | Offline TTS via espeak-ng (WAV → webview playback), optional whisper.cpp STT; browser speech fallback |
+| Assistant | Deterministic intent parser + conversational context: "Search Iron Man on Google", "Google Iron Man", "open GitHub", "open example.com", "play X on YouTube", then "now search Avengers" follows the last platform |
+| Voice input | Native microphone capture (Rust/cpal, no Web Speech API, no HTTPS) with lightweight VAD; optional whisper.cpp transcription with an external model (~/.cache/pluto) |
+| Voice output | Auto-detected best free engine: Piper (neural) → pico2wave → espeak-ng female (+f3) → espeak → browser speech fallback. Never crashes without TTS |
 
 ## Build
 
@@ -36,7 +37,8 @@ Prerequisites (build machine only): Node 20+, Rust stable, and Tauri Linux deps:
 
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
-  libayatana-appindicator3-dev libssl-dev pkg-config
+  libayatana-appindicator3-dev libssl-dev pkg-config libasound2-dev \
+  libclang-dev clang
 npm install
 npm run build:deb        # -> dist/Pluto_1.0.0_amd64.deb
 ```

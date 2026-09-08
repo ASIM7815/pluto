@@ -14,6 +14,8 @@ export interface BackendEvent {
   text?: string;
   audio?: string | null;
   tts?: string;
+  mime?: string;
+  level?: number;
   step?: ExecutionStep;
   preview?: ActionPreview;
   activity?: Activity;
@@ -132,7 +134,12 @@ export const aiService = {
         store.setAiResponse(data.text ?? null);
         // Fire-and-forget: plays backend audio (local TTS) or browser TTS,
         // then returns the UI to LISTENING.
-        if (data.text) void speak(data.text, data.audio ?? null, data.tts);
+        if (data.text) void speak(data.text, data.audio ?? null, data.tts, data.mime);
+        break;
+
+      case "audio_level":
+        // Live microphone meter from the Rust capture loop (0..1).
+        store.setAudioLevel(typeof data.level === "number" ? Math.min(1, Math.max(0, data.level)) : 0);
         break;
 
       case "error":

@@ -47,6 +47,8 @@ pub fn run() {
             commands::pluto_tts_synthesize,
             commands::pluto_tts_voices,
             commands::pluto_stt_status,
+            commands::pluto_stt_record,
+            commands::pluto_voice_cancel,
             commands::pluto_stt_transcribe,
             commands::pluto_is_available,
         ])

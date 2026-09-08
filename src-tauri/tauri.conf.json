@@ -50,6 +50,7 @@
           "libxcb1",
           "libssl3",
           "xdg-utils",
+          "libasound2 | libasound2t64",
           "imagemagick | scrot | grim | gnome-screenshot"
         ],
         "section": "utils",

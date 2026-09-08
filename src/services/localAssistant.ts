@@ -100,12 +100,14 @@ export const localAssistant = {
     store.setExecuting(false);
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   confirmAction(_action: string): void {
     this.pendingAction?.resolve(true);
     this.pendingAction = null;
     usePlutoStore.getState().setConfirmationRequired(null);
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   rejectAction(_action: string): void {
     this.pendingAction?.resolve(false);
     this.pendingAction = null;
@@ -126,36 +128,92 @@ export const localAssistant = {
   } {
     const t = text.toLowerCase();
 
-    // URLs / websites
-    if (t.includes("youtube") || (t.includes("play") && t.includes("song"))) {
-      const q = t.includes("lofi") ? "lofi chill beats" : "";
-      const url = q ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}` : "https://www.youtube.com";
+    // --- Websites, browser & web search (engine-aware) ----------------------
+    const ENGINE_NAMES = "(?:youtube|google|bing|duckduckgo|github|reddit|wikipedia|amazon)";
+    const ENGINE_SITES: Record<string, string> = {
+      youtube: "https://www.youtube.com", google: "https://www.google.com",
+      bing: "https://www.bing.com", github: "https://github.com",
+      reddit: "https://www.reddit.com", wikipedia: "https://www.wikipedia.org",
+      amazon: "https://www.amazon.com", duckduckgo: "https://duckduckgo.com",
+      gmail: "https://mail.google.com",
+    };
+    const SEARCH_BASES: Record<string, string> = {
+      youtube: "https://www.youtube.com/results?search_query=",
+      google: "https://www.google.com/search?q=",
+      bing: "https://www.bing.com/search?q=",
+      github: "https://github.com/search?q=",
+      reddit: "https://www.reddit.com/search?q=",
+      wikipedia: "https://en.wikipedia.org/w/index.php?search=",
+      amazon: "https://www.amazon.com/s?k=",
+      duckduckgo: "https://duckduckgo.com/?q=",
+    };
+
+    if (/(^|\s)(open|launch|start|open up)(\s+(a |the )?)?browser/.test(t)) {
       return this.result(
         ["open_url"],
-        [{ label: `Open ${q ? "YouTube search" : "YouTube"}`, tool: "open_url", category: "browser", run: async () => ({ ok: await openUrl(url), detail: `Opened ${url}` }) }],
-        q ? `Searched YouTube for '${q}', BOSS. (Desktop app uses the real browser.)` : `Opened YouTube, BOSS.`,
+        [{ label: "Open default browser", tool: "open_url", category: "browser", run: async () => ({ ok: await openUrl("https://www.google.com"), detail: "Opened browser (preview)" }) }],
+        "Opening your default browser, BOSS.",
         "browser open failed"
       );
     }
-    if (/(open|go to|visit|launch)\s+(.+)/.test(text) && !/(app|terminal|file|folder)/.test(t)) {
-      const target = String(RegExp.$1).trim();
-      const url = /^https?:\/\//.test(target) ? target : /^\w[\w.-]+\.\w{2,}$/.test(target) ? `https://${target}` : `https://www.google.com/search?q=${encodeURIComponent(target)}`;
+
+    // Trailing platform mention: "search X on YouTube", "look up X on Google".
+    const mention = t.match(new RegExp(`(?:^|\\s)(?:on|in|using|at)\\s+(?:the\\s+)?(${ENGINE_NAMES})\\s*$`));
+    let engine: string | null = mention ? mention[1].toLowerCase() : null;
+    let body = mention ? text.slice(0, mention.index).trim() : text;
+
+    // Leading engine verb: "Google Iron Man" / "YouTube Iron Man".
+    const leading = body.match(new RegExp(`^(${ENGINE_NAMES})\\s+(.+)`, "i"));
+    if (leading && !engine) {
+      engine = leading[1].toLowerCase();
+      body = leading[2].trim();
+    }
+
+    const verbMatch = body.match(/(search|look up|look for|find|play|watch)\s+(?:for\s+)?(.+)/i);
+    const query = verbMatch ? verbMatch[2].trim() : engine && leading ? body : "";
+    const videoIntent = /^(play|watch)\s/.test(t) || /(video|videos|song|music|trailer|movie)\b/.test(t);
+    if (verbMatch || (engine && query)) {
+      const finalEngine = engine || (videoIntent ? "youtube" : "google");
+      if (query) {
+        const base = SEARCH_BASES[finalEngine] || SEARCH_BASES.google;
+        const url = `${base}${encodeURIComponent(query)}`;
+        const display = finalEngine.charAt(0).toUpperCase() + finalEngine.slice(1);
+        return this.result(
+          ["browser_search"],
+          [{ label: `Search ${display} for '${query}'`, tool: "browser_search", category: "browser", run: async () => ({ ok: await openUrl(url), detail: `Opened ${url}` }) }],
+          `Searched ${display} for '${query}', BOSS.`,
+          "search failed"
+        );
+      }
+    }
+
+    // Bare known site ("youtube", "google") opens it directly.
+    const directKey = t.trim();
+    if (ENGINE_SITES[directKey]) {
+      const directUrl = ENGINE_SITES[directKey];
       return this.result(
         ["open_url"],
-        [{ label: `Open ${target}`, tool: "open_url", category: "browser", run: async () => ({ ok: await openUrl(url), detail: `Opened ${url}` }) }],
-        `Opened ${target}, BOSS.`,
+        [{ label: `Open ${directKey}`, tool: "open_url", category: "browser", run: async () => ({ ok: await openUrl(directUrl), detail: `Opened ${directUrl}` }) }],
+        `Opened ${directKey}, BOSS.`,
         "browser open failed"
       );
     }
-    if (/(search|find)\s+(.+)/.test(text)) {
-      const q = RegExp.$2.replace(/^(for|on)\s+/i, "").trim();
-      const url = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
-      return this.result(
-        ["browser_search"],
-        [{ label: `Search '${q}'`, tool: "browser_search", category: "browser", run: async () => ({ ok: await openUrl(url), detail: `Opened search for ${q}` }) }],
-        `Found results for '${q}', BOSS.`,
-        "search failed"
-      );
+
+    // Open a known website or a bare domain.
+    if (/^(open|go to|visit|launch|start|open up)\s+/i.test(text) && !/(app|terminal|file|folder)/.test(t)) {
+      const target = text.replace(/^(?:open|go to|visit|launch|start|open up)\s+/i, "").trim();
+      const key = target.toLowerCase();
+      const url =
+        ENGINE_SITES[key] ??
+        (/^https?:\/\//i.test(target) ? target : /^[\w][\w.-]+\.[a-z]{2,}$/i.test(target) ? `https://${target}` : null);
+      if (url) {
+        return this.result(
+          ["open_url"],
+          [{ label: `Open ${key || target}`, tool: "open_url", category: "browser", run: async () => ({ ok: await openUrl(url), detail: `Opened ${url}` }) }],
+          `Opened ${target}, BOSS.`,
+          "browser open failed"
+        );
+      }
     }
 
     // Clipboard

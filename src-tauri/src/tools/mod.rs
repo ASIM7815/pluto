@@ -215,6 +215,7 @@ pub async fn run_tool(name: &str, arguments: &Value) -> ToolResult {
             "move_file" => files::move_file(&arguments),
             "copy_file" => files::copy_file(&arguments),
             // apps + browser
+            "open_browser" => apps::open_browser(),
             "open_application" => apps::open_application(&arguments),
             "close_application" => apps::close_application(&arguments),
             "switch_to_application" => apps::switch_to_application(&arguments),

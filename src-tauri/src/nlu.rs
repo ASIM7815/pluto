@@ -27,9 +27,14 @@ pub struct SessionContext {
     pub current_url: Option<String>,
     pub selected_result_index: Option<u32>,
     pub current_app: Option<String>,
+    /// Last search engine/platform used (google, youtube, bing, ...), so a
+    /// bare follow-up like "search Avengers" keeps searching the same site.
+    #[serde(default)]
+    pub last_search_engine: Option<String>,
 }
 
 pub const PLANNED_TOOL_NAMES: &[&str] = &[
+    "open_browser",
     "open_application",
     "close_application",
     "switch_to_application",
@@ -112,7 +117,6 @@ const SITE_URLS: &[(&str, &str)] = &[
 
 const APP_MAPPINGS: &[(&str, &str)] = &[
     ("firefox", "firefox"),
-    ("browser", "firefox"),
     ("chrome", "google-chrome"),
     ("google chrome", "google-chrome"),
     ("chromium", "chromium"),
@@ -188,6 +192,55 @@ const KNOWN_WEBSITES: &[(&str, &str)] = &[
     ("trello", "https://trello.com"),
     ("asana", "https://app.asana.com"),
     ("miro", "https://miro.com"),
+];
+
+/// Deterministic search-engine table: alias -> (engine id, search base URL).
+const SEARCH_ENGINES: &[(&str, &str, &str)] = &[
+    ("you tube", "youtube", "https://www.youtube.com/results?search_query="),
+    ("duck duck go", "duckduckgo", "https://duckduckgo.com/?q="),
+    ("google", "google", "https://www.google.com/search?q="),
+    ("youtube", "youtube", "https://www.youtube.com/results?search_query="),
+    ("bing", "bing", "https://www.bing.com/search?q="),
+    ("duckduckgo", "duckduckgo", "https://duckduckgo.com/?q="),
+    ("ddg", "duckduckgo", "https://duckduckgo.com/?q="),
+    ("github", "github", "https://github.com/search?q="),
+    ("reddit", "reddit", "https://www.reddit.com/search?q="),
+    ("wikipedia", "wikipedia", "https://en.wikipedia.org/w/index.php?search="),
+    ("amazon", "amazon", "https://www.amazon.com/s?k="),
+    ("the web", "google", "https://www.google.com/search?q="),
+    ("the internet", "google", "https://www.google.com/search?q="),
+    ("yt", "youtube", "https://www.youtube.com/results?search_query="),
+];
+
+/// Engine homepage used when the user only says "open <engine>".
+fn engine_home(engine: &str) -> &'static str {
+    match engine {
+        "youtube" => "https://www.youtube.com",
+        "duckduckgo" => "https://duckduckgo.com",
+        "bing" => "https://www.bing.com",
+        "github" => "https://github.com",
+        "reddit" => "https://www.reddit.com",
+        "wikipedia" => "https://www.wikipedia.org",
+        "amazon" => "https://www.amazon.com",
+        _ => "https://www.google.com",
+    }
+}
+
+/// Verbs that start a web search (longest first so "search for" wins).
+const SEARCH_VERBS: &[&str] = &[
+    "can you search for",
+    "could you search for",
+    "please search for",
+    "search for",
+    "search the web for",
+    "look up",
+    "look for",
+    "google",
+    "search",
+    "find",
+    "play",
+    "watch",
+    "show me",
 ];
 
 const GREETING_WORDS: &[&str] = &[
@@ -729,10 +782,259 @@ fn system_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
     None
 }
 
-fn browser_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Vec<PlanItem>> {
-    let current_url = ctx.current_url.clone().unwrap_or_default();
-    let on_youtube = current_url.contains("youtube.com") || current_url.contains("youtu.be");
+/// Whole-word file nouns that signal a *file* command rather than a web
+/// search ("find my files", "search for a document").
+const FILE_WORDS: &[&str] = &["file", "files", "folder", "folders", "document", "documents", "pdf", "note"];
 
+/// Common web TLDs used to decide that "open <name>.<tld>" is a website and
+/// not a local file ("notes.txt" keeps routing to the file tools).
+const WEB_TLDS: &[&str] = &[
+    "com", "org", "net", "io", "ai", "dev", "app", "co", "me", "info", "edu", "gov", "tv", "xyz",
+    "site", "online", "tech", "store", "cloud", "blog", "uk", "de", "fr", "ca", "au", "in", "jp",
+    "ru", "br", "nl", "es", "it", "ch", "se", "pl", "be", "at", "no", "dk", "fi", "pt", "gr", "tr",
+    "za", "mx", "ar", "kr", "cn", "tw", "hk", "sg", "nz", "ie", "il", "ae", "sa", "us", "eu",
+];
+
+struct ParsedSearch {
+    engine: String,
+    query: String,
+    action: &'static str,
+}
+
+fn contains_word(text: &str, word: &str) -> bool {
+    Regex::new(&format!(r"\b{}\b", regex::escape(word)))
+        .map(|re| re.is_match(text))
+        .unwrap_or(false)
+}
+
+fn url_encode_query(query: &str) -> String {
+    let mut out = String::with_capacity(query.len());
+    for b in query.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
+fn engine_for_alias(alias: &str) -> Option<(&'static str, &'static str)> {
+    SEARCH_ENGINES
+        .iter()
+        .find(|(a, _, _)| *a == alias)
+        .map(|(_, engine, base)| (*engine, *base))
+}
+
+fn engine_display(engine: &str) -> &'static str {
+    match engine {
+        "youtube" => "YouTube",
+        "duckduckgo" => "DuckDuckGo",
+        "bing" => "Bing",
+        "github" => "GitHub",
+        "reddit" => "Reddit",
+        "wikipedia" => "Wikipedia",
+        "amazon" => "Amazon",
+        _ => "Google",
+    }
+}
+
+fn engine_search_url(engine: &str, query: &str) -> String {
+    let base = SEARCH_ENGINES
+        .iter()
+        .find(|(_, e, _)| *e == engine)
+        .map(|(_, _, base)| *base)
+        .unwrap_or("https://www.google.com/search?q=");
+    format!("{}{}", base, url_encode_query(query))
+}
+
+/// Detect an explicit search-platform mention and strip it (plus its
+/// connector) from the text. Examples: "on YouTube", "using Bing",
+/// "Google Iron Man", "search YouTube for Iron Man".
+fn extract_engine(text: &str) -> Option<(String, String)> {
+    let t = norm(text);
+    let mut aliases: Vec<&str> = SEARCH_ENGINES.iter().map(|(a, _, _)| *a).collect();
+    aliases.sort_by_key(|a| std::cmp::Reverse(a.len()));
+    aliases.dedup();
+
+    for alias in aliases {
+        let (engine, _) = engine_for_alias(alias).expect("alias lookup");
+        let escaped = regex::escape(alias);
+        // Pattern 1: "... <connector> [the] <alias>"  (platform mention)
+        let pat_after = Regex::new(&format!(r"\b(?:on|in|using|via|at|within|over)\s+(?:the\s+|website\s+|site\s+)?{}", escaped)).ok()?;
+        // Pattern 2: "<search verb> <alias> [for|about]..." (target form)
+        let pat_verb = Regex::new(&format!(r"\b(?:search|find|look|watch|play|open|visit)\s+{}(?:\s+for\s+|\s+about\s+|\s+|\b)", escaped)).ok()?;
+        // Pattern 3: leading alias as the verb ("Google Iron Man").
+        let pat_leading = Regex::new(&format!(r"^{}\s+", escaped)).ok()?;
+
+        let try_remove = |re: &Regex, strip_connector: bool| -> Option<(String, String)> {
+            let m = re.find(&t)?;
+            let mut start = m.start();
+            let mut end = m.end();
+            if end < t.len() {
+                let next = t[end..].chars().next()?;
+                // "youtube.com" must not be split into an engine mention.
+                if next == '.' || next.is_alphanumeric() {
+                    return None;
+                }
+            }
+            if strip_connector {
+                // Include the leading connector word (" on youtube").
+                let before = &t[..start];
+                if let Some(space) = before.rfind(' ') {
+                    let word = before[space + 1..].trim();
+                    let connector = ["on", "in", "using", "via", "at", "within", "over", "the", "website", "site"];
+                    let mut drop = space;
+                    if connector.contains(&word) {
+                        drop = before[..space].rfind(' ').map(|i| i + 1).unwrap_or(0);
+                    }
+                    start = drop;
+                } else {
+                    start = 0;
+                }
+            }
+            let removed = format!("{} {}", &t[..start], &t[end..]);
+            Some((engine.to_string(), norm(&removed)))
+        };
+
+        for pat in [(&pat_after, true), (&pat_verb, false), (&pat_leading, false)] {
+            if let Some(found) = try_remove(pat.0, pat.1) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn clean_query(raw: &str) -> String {
+    let mut q = norm(raw);
+    let mut guard = 0;
+    loop {
+        guard += 1;
+        if guard > 12 {
+            break;
+        }
+        let trimmed = q.trim();
+        let mut changed = false;
+        for stop in ["please", "now", "then", "also", "for", "about", "me", "us", "the", "a", "an", "to", "and"] {
+            let prefix = format!("{} ", stop);
+            if trimmed.starts_with(&prefix) {
+                q = trimmed[prefix.len()..].to_string();
+                changed = true;
+                break;
+            }
+            if trimmed == stop {
+                q = String::new();
+                changed = true;
+                break;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    q.trim()
+        .trim_matches(|c: char| c == ' ' || c == ',' || c == '.' || c == ';' || c == ':' || c == '!' || c == '?')
+        .trim()
+        .to_string()
+}
+
+/// Deterministic web-search parser. Understands:
+///   "search Iron Man on Google", "Google Iron Man", "look up Iron Man",
+///   "find Iron Man videos", "play X on YouTube", "search YouTube for X",
+///   and context follow-ups ("now search Avengers") via ctx.last_search_engine.
+fn parse_search(text: &str, ctx: &SessionContext) -> Option<ParsedSearch> {
+    let t = norm(text);
+    if t.is_empty() {
+        return None;
+    }
+    let explicit = extract_engine(text);
+    let has_file_noun = FILE_WORDS.iter().any(|w| contains_word(&t, w));
+    // Without an explicit platform, leave genuine file requests to the file tools.
+    if has_file_noun && explicit.is_none() {
+        return None;
+    }
+
+    let (engine_opt, body) = match &explicit {
+        Some((engine, body)) => (Some(engine.clone()), body.clone()),
+        None => (None, t.clone()),
+    };
+
+    // Find the action verb on a word boundary ("search" must not match inside
+    // "research").
+    let mut verb: Option<(&'static str, String)> = None;
+    'verbs: for v in SEARCH_VERBS.iter().copied() {
+        if v == "google" && engine_opt.is_some() {
+            // "google" was already consumed as the platform.
+            continue;
+        }
+        let mut search_from = 0usize;
+        while let Some(rel) = body[search_from..].find(v) {
+            let idx = search_from + rel;
+            let prev_ok = idx == 0 || body.as_bytes()[idx - 1] == b' ';
+            let after = idx + v.len();
+            let next_ok = after >= body.len() || body.as_bytes().get(after).map(|c| *c == b' ').unwrap_or(true);
+            if prev_ok && next_ok {
+                let q = clean_query(&body[after..]);
+                if !q.is_empty() {
+                    verb = Some((v, q));
+                    break 'verbs;
+                }
+            }
+            search_from = idx + v.len();
+            if search_from >= body.len() {
+                break;
+            }
+        }
+    }
+
+    let (verb_name, query) = match verb {
+        Some((v, q)) => (v, q),
+        None => {
+            // Leading engine verb ("Google Iron Man") leaves the whole body as
+            // the query.
+            if engine_opt.is_some() && !body.is_empty() {
+                let q = clean_query(&body);
+                if q.is_empty() {
+                    return None;
+                }
+                ("google", q)
+            } else {
+                return None;
+            }
+        }
+    };
+    if query.is_empty() {
+        return None;
+    }
+
+    // Choose the target engine: explicit platform wins; otherwise videos and
+    // playback go to YouTube and everything else follows the last engine (or
+    // Google by default - never a blanket YouTube default).
+    let engine = match engine_opt {
+        Some(e) => e,
+        None => {
+            let wants_video = verb_name == "play"
+                || verb_name == "watch"
+                || contains_word(&t, "video")
+                || contains_word(&t, "videos")
+                || contains_word(&t, "song")
+                || contains_word(&t, "music")
+                || contains_word(&t, "trailer");
+            if wants_video {
+                "youtube".to_string()
+            } else {
+                ctx.last_search_engine.clone().unwrap_or_else(|| "google".to_string())
+            }
+        }
+    };
+    Some(ParsedSearch {
+        engine,
+        query,
+        action: if verb_name == "play" || verb_name == "watch" { "play" } else { "search" },
+    })
+}
+
+fn browser_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Vec<PlanItem>> {
     if ["close the browser", "close browser", "quit the browser", "quit browser", "exit the browser", "close the chrome window"]
         .iter().any(|k| t.contains(k))
     {
@@ -763,96 +1065,83 @@ fn browser_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Ve
         ]);
     }
 
-    // YouTube pipeline ------------------------------------------------------
-    let yt_intent = ["youtube", "you tube", "yt "].iter().any(|k| t.contains(k))
-        || (t.contains("video") && (t.contains("play") || t.contains("watch")))
-        || (on_youtube && ["search", "play", "watch", "find"].iter().any(|k| t.contains(k)));
-    if yt_intent {
-        let mut query = String::new();
-        let re_q = Regex::new(r#"["']([^"']+)["']"#).unwrap();
-        if let Some(caps) = re_q.captures(text) {
-            query = caps.get(1).unwrap().as_str().trim().to_string();
-        } else {
-            for marker in ["search for ", "search ", "look for ", "find ", "play ", "watch "] {
-                if let Some(idx) = t.find(marker) {
-                    let mut q = text[idx + marker.len()..].to_string();
-                    let lower_q = q.to_lowercase();
-                    for stop in [" on youtube", " in youtube", " second video", " first video",
-                        " third video", " and", " please", ", then", " then "]
-                    {
-                        if let Some(pos) = lower_q.find(stop) {
-                            q = q[..pos].to_string();
-                        }
-                    }
-                    query = q.trim().trim_end_matches(|c: char| c == ' ' || c == ',' || c == '.' || c == ';' || c == ':' || c == '!' || c == '?').to_string();
-                    break;
-                }
-            }
-        }
-        // "play the second video" is a follow-up click, not a search.
-        if Regex::new(r"(?i)^(?:the\s+)?(?:first|second|third|fourth|fifth|next|top|one|\d+(?:st|nd|rd|th)?)(?:\s+(?:video|result|one|episode))?$")
-            .unwrap().is_match(query.trim().to_lowercase().as_str())
-        {
-            query.clear();
-        }
-        if ["it", "that", "this", "one", "top", "the top", "the"].contains(&query.trim().to_lowercase().as_str()) {
-            query.clear();
-        }
-        if query.is_empty() && text.to_lowercase().contains("iron man") {
-            query = "Iron Man".into();
-        }
-
-        let mut ordinal: Option<u32> = None;
-        let ordinal_words = [
-            ("first", 0u32), ("1st", 0), ("second", 1), ("2nd", 1), ("third", 2), ("3rd", 2),
-            ("fourth", 3), ("4th", 3), ("fifth", 4), ("5th", 4),
-        ];
-        for (word, idx) in ordinal_words {
-            if Regex::new(&format!(r"(?i)\b{}\b", word)).unwrap().is_match(t) {
-                ordinal = Some(idx);
-                break;
-            }
-        }
-
-        let need_open = !on_youtube
-            && (t.contains("open youtube") || t.contains("go to youtube") || t.contains("youtube")
-                || t.contains("video") || t.contains("you tube"));
-        let mut steps = Vec::new();
-        if need_open {
-            steps.push(PlanItem::Step(NluStep {
-                name: "open_url".into(),
-                arguments: serde_json::json!({ "url": "https://www.youtube.com" }),
-            }));
-        }
-        if !query.is_empty() {
-            steps.push(PlanItem::Step(NluStep {
+    // --- Web searches (explicit platform, platform verb, or context) ---
+    if let Some(s) = parse_search(text, ctx) {
+        let url = engine_search_url(&s.engine, &s.query);
+        let display = engine_display(&s.engine);
+        let action_word = if s.action == "play" { "Playing" } else { "Searched" };
+        return Some(vec![
+            PlanItem::Step(NluStep {
                 name: "browser_search".into(),
-                arguments: serde_json::json!({ "query": query, "site": "youtube" }),
-            }));
-        }
-        if let Some(i) = ordinal {
-            steps.push(PlanItem::Step(NluStep {
-                name: "browser_click".into(),
-                arguments: serde_json::json!({ "selector": "a#video-title", "index": i }),
-            }));
-            steps.push(PlanItem::Text(format!("Opened and started the #{} video, BOSS.", i + 1)));
-        } else if ["play", "watch", "listen"].iter().any(|k| t.contains(k)) {
-            steps.push(PlanItem::Step(NluStep {
-                name: "browser_click".into(),
-                arguments: serde_json::json!({ "selector": "a#video-title", "index": 0 }),
-            }));
-            steps.push(PlanItem::Text("Playing it now, BOSS.".into()));
-        } else if !query.is_empty() {
-            steps.push(PlanItem::Text(format!("Searching YouTube for '{}', BOSS.", query)));
-        } else {
-            steps.push(PlanItem::Text("YouTube is open, BOSS. Want me to search something?".into()));
-        }
-        if !steps.is_empty() {
-            return Some(steps);
+                arguments: serde_json::json!({ "query": s.query, "site": s.engine, "url": url }),
+            }),
+            PlanItem::Text(format!(
+                "{} {} for '{}' - opened the results in your browser, BOSS.",
+                action_word,
+                display,
+                s.query
+            )),
+        ]);
+    }
+
+    // --- explicit URL ---
+    if let Some(caps) = Regex::new(r"(?i)https?://\S+").unwrap().captures(text) {
+        let url = caps.get(0).unwrap().as_str().trim_end_matches(|c| c == '.' || c == ',' || c == ';' || c == '!' || c == '?');
+        return Some(vec![
+            PlanItem::Step(NluStep { name: "open_url".into(), arguments: serde_json::json!({ "url": url }) }),
+            PlanItem::Text(format!("Opening {}, BOSS.", url)),
+        ]);
+    }
+
+    // --- "open <site>" via known sites ---
+    if let Some(key) = site_keyword(text) {
+        let url = SITE_URLS.iter().find(|(k, _)| *k == key).map(|(_, u)| *u).unwrap_or("");
+        if ["open", "go to", "navigate", "visit", "browse", "launch", "start", "open up", "pull up"]
+            .iter().any(|k| t.contains(k))
+        {
+            return Some(vec![
+                PlanItem::Step(NluStep { name: "open_url".into(), arguments: serde_json::json!({ "url": url }) }),
+                PlanItem::Text(format!("Opened {}, BOSS.", key)),
+            ]);
         }
     }
 
-    // nth-result follow-up on the current page
+    // --- open <domain> / bare domain ---
+    let has_open_verb = [" open ", " open up ", " go to ", " visit ", " navigate to ", " launch ", " start ", " browse to "]
+        .iter().any(|k| w.contains(k))
+        || t.starts_with("open ");
+    if has_open_verb || (!text.contains(' ') && text.contains('.')) {
+        let domain_re = Regex::new(r"(?i)\b([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.(?:[a-z0-9-]+\.)*[a-z]{2,})\b").unwrap();
+        if let Some(caps) = domain_re.captures(text) {
+            let domain = caps.get(1).unwrap().as_str().trim_end_matches(|c: char| !c.is_alphanumeric());
+            let tld = domain.rsplit('.').next().unwrap_or("").to_lowercase();
+            let is_web_tld = WEB_TLDS.contains(&tld.as_str());
+            let looks_like_file = tld.len() <= 4 && !is_web_tld;
+            if is_web_tld || (has_open_verb && !looks_like_file) {
+                let url = format!("https://{}", domain);
+                return Some(vec![
+                    PlanItem::Step(NluStep { name: "open_url".into(), arguments: serde_json::json!({ "url": url }) }),
+                    PlanItem::Text(format!("Opening {}, BOSS.", domain)),
+                ]);
+            }
+        }
+    }
+
+    // --- bare engine/site word ("youtube", "google") opens the site ---
+    let bare = norm(text);
+    if !bare.contains(' ') {
+        for (alias, engine, _) in SEARCH_ENGINES.iter().copied() {
+            if alias == bare.as_str() && (alias.len() > 2 || contains_word(&bare, alias)) {
+                let url = engine_home(engine);
+                return Some(vec![
+                    PlanItem::Step(NluStep { name: "open_url".into(), arguments: serde_json::json!({ "url": url }) }),
+                    PlanItem::Text(format!("Opened {}, BOSS.", engine_display(engine))),
+                ]);
+            }
+        }
+    }
+
+    // --- nth-result follow-up on the current page ---
     let followup = ["second", "third", "fourth", "fifth", "2nd", "3rd", "4th", "5th",
         "next one", "next result", "next video", "first one", "first result", "top result", "another one"]
         .iter().any(|w2| Regex::new(&format!(r"(?i)\b{}\b", w2)).unwrap().is_match(t));
@@ -871,77 +1160,17 @@ fn browser_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Ve
         {
             ordinal = ctx.selected_result_index.unwrap_or(0) + 1;
         }
-        let selector = if on_youtube { "a#video-title" } else { "a" };
-        let mut args = serde_json::json!({ "index": ordinal });
-        args["selector"] = serde_json::json!(selector);
         return Some(vec![
-            PlanItem::Step(NluStep { name: "browser_click".into(), arguments: args }),
-            PlanItem::Text(format!("Opened result number {}, BOSS.", ordinal + 1)),
+            PlanItem::Text(format!(
+                "The #{} result is waiting in your browser. I don't click inside pages without an automation bridge, so open it from there, BOSS.",
+                ordinal + 1
+            )),
         ]);
-    }
-
-    // open an explicit URL
-    if let Some(caps) = Regex::new(r"(?i)https?://\S+").unwrap().captures(text) {
-        let url = caps.get(0).unwrap().as_str().trim_end_matches(|c| c == '.' || c == ',' || c == ';');
-        return Some(vec![
-            PlanItem::Step(NluStep { name: "open_url".into(), arguments: serde_json::json!({ "url": url }) }),
-            PlanItem::Text(format!("Opening {}, BOSS.", url)),
-        ]);
-    }
-
-    // "open <site>" via known sites
-    if let Some(key) = site_keyword(text) {
-        let url = SITE_URLS.iter().find(|(k, _)| *k == key).map(|(_, u)| *u).unwrap_or("");
-        if ["open", "go to", "navigate", "visit", "browse", "launch", "start"].iter()
-            .any(|k| t.contains(k))
-        {
-            return Some(vec![
-                PlanItem::Step(NluStep { name: "open_url".into(), arguments: serde_json::json!({ "url": url }) }),
-                PlanItem::Text(format!("Opened {}, BOSS.", key)),
-            ]);
-        }
-    }
-
-    // search <query> [on <site>]
-    let search_re = Regex::new(r"(?i)^search\s+(?:for\s+)?(.+?)(?:\s+on\s+(\w+))?$").unwrap();
-    if let Some(caps) = search_re.captures(text.trim()) {
-        let query = caps.get(1).unwrap().as_str().trim().to_string();
-        let mut args = serde_json::json!({ "query": query });
-        if let Some(site_c) = caps.get(2) {
-            let site = site_c.as_str().to_string();
-            let site_url = SITE_URLS.iter().find(|(k, _)| *k == site).map(|(_, u)| *u).unwrap_or("");
-            args["site"] = serde_json::json!(site);
-            args["url"] = serde_json::json!(if site_url.is_empty() {
-                format!("https://www.google.com/search?q={}", query.replace(' ', "+"))
-            } else {
-                format!("{}/search?q={}", site_url, query.replace(' ', "+"))
-            });
-        } else {
-            args["url"] = serde_json::json!(format!("https://www.google.com/search?q={}", query.replace(' ', "+")));
-        }
-        return Some(vec![
-            PlanItem::Step(NluStep { name: "browser_search".into(), arguments: args }),
-            PlanItem::Text(format!("Searched for '{}', BOSS.", query)),
-        ]);
-    }
-
-    // search while on youtube
-    if t.contains("search") && on_youtube {
-        let search_re = Regex::new(r"search\s+(?:for\s+)?(.+)").unwrap();
-        if let Some(caps) = search_re.captures(t) {
-            let query = caps.get(1).unwrap().as_str().trim().to_string();
-            return Some(vec![
-                PlanItem::Step(NluStep {
-                    name: "browser_search".into(),
-                    arguments: serde_json::json!({ "query": query, "site": "youtube" }),
-                }),
-                PlanItem::Text(format!("Searched YouTube for '{}', BOSS.", query)),
-            ]);
-        }
     }
 
     None
 }
+
 
 fn file_plan(text: &str, t: &str, w: &str, ctx: &SessionContext) -> Option<Vec<PlanItem>> {
     // ---- list directory
@@ -1234,6 +1463,17 @@ fn application_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
             PlanItem::Text("Here are the running applications, BOSS.".into()),
         ]);
     }
+    // Open the user's default browser (not a hard-coded one).
+    if ["open browser", "open the browser", "open a browser", "launch browser", "launch the browser",
+        "start browser", "start the browser", "open up the browser", "open web browser",
+        "open my browser", "open default browser", "start a browser", "open the web browser",
+        "open a web browser", "launch the web browser"].iter().any(|k| t.contains(k))
+    {
+        return Some(vec![
+            PlanItem::Step(NluStep { name: "open_browser".into(), arguments: serde_json::json!({}) }),
+            PlanItem::Text("Opening your default browser, BOSS.".into()),
+        ]);
+    }
     if [" switch to ", " focus on ", " focus ", " bring up ", " switch over to ", " go to the "]
         .iter().any(|k| w.contains(k))
     {
@@ -1293,6 +1533,98 @@ fn application_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
     }
     None
 }
+/// Structured readout of what PLUTO understood, for the UI brain panel:
+/// intent / target / platform / query / url / action.
+pub fn command_meta(text: &str, ctx: &SessionContext) -> serde_json::Value {
+    use serde_json::json;
+    let items = plan(text, ctx);
+    for item in &items {
+        let PlanItem::Step(step) = item else { continue };
+        let name = step.name.as_str();
+        let a = &step.arguments;
+        let get = |k: &str| a.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let mut intent = String::new();
+        let mut target = String::new();
+        let mut platform = String::new();
+        let mut query = String::new();
+        let mut url = String::new();
+        let mut action = String::new();
+        match name {
+            "browser_search" => {
+                query = get("query");
+                url = get("url");
+                platform = {
+                    let site = get("site");
+                    if site.is_empty() { site_from_url(&url) } else { site }
+                };
+                target = query.clone();
+                intent = "web_search".to_string();
+                action = "search".to_string();
+            }
+            "open_url" => {
+                url = get("url");
+                target = url.clone();
+                platform = site_from_url(&url);
+                intent = "open_website".to_string();
+                action = "open".to_string();
+            }
+            "open_browser" => {
+                target = "default browser".to_string();
+                intent = "open_browser".to_string();
+                action = "open".to_string();
+            }
+            "open_application" | "close_application" | "switch_to_application" => {
+                target = get("application");
+                intent = name.replace('_', " ");
+                action = "run".to_string();
+            }
+            "take_screenshot" => {
+                intent = "take_screenshot".to_string();
+                action = "capture".to_string();
+                platform = get("area");
+            }
+            "set_volume" | "get_volume" => {
+                intent = "volume".to_string();
+                target = get("level");
+                action = if name == "set_volume" { "set" } else { "read" }.to_string();
+            }
+            "copy_to_clipboard" | "get_clipboard" => {
+                intent = "clipboard".to_string();
+                target = get("text");
+                action = if name == "copy_to_clipboard" { "copy" } else { "read" }.to_string();
+            }
+            "get_processes" | "kill_process" => {
+                intent = "process".to_string();
+                target = if name == "get_processes" { get("name") } else { get("process") };
+                action = if name == "kill_process" { "kill" } else { "list" }.to_string();
+            }
+            "execute_command" => {
+                intent = "run_command".to_string();
+                target = get("command");
+                action = "execute".to_string();
+            }
+            "create_folder" | "create_file" | "delete_file" | "read_file" | "list_directory"
+            | "open_file" | "open_folder" | "find_files" | "move_file" | "copy_file" => {
+                intent = name.replace('_', " ");
+                target = if !get("path").is_empty() { get("path") } else { get("source") };
+                query = get("query");
+                action = "run".to_string();
+            }
+            _ => {
+                intent = name.replace('_', " ");
+                action = "run".to_string();
+            }
+        }
+        let mut data = json!({ "intent": intent });
+        if !target.is_empty() { data["target"] = json!(target); }
+        if !platform.is_empty() { data["platform"] = json!(platform); }
+        if !query.is_empty() { data["query"] = json!(query); }
+        if !url.is_empty() { data["url"] = json!(url); }
+        if !action.is_empty() { data["action"] = json!(action); }
+        return data;
+    }
+    json!({ "intent": "conversation", "action": "reply" })
+}
 
 #[cfg(test)]
 mod tests {
@@ -1306,6 +1638,151 @@ mod tests {
             })
             .collect()
     }
+
+    fn first_step(plan: &[PlanItem]) -> Option<NluStep> {
+        plan.iter().find_map(|p| match p {
+            PlanItem::Step(s) => Some(s.clone()),
+            _ => None,
+        })
+    }
+
+    fn search_arg(plan: &[PlanItem], key: &str) -> String {
+        first_step(plan)
+            .and_then(|s| s.arguments.get(key).and_then(|v| v.as_str()).map(|v| v.to_string()))
+            .unwrap_or_default()
+    }
+
+    // --- required natural commands -----------------------------------------
+
+    #[test]
+    fn search_google_explicit() {
+        for cmd in [
+            "Search Iron Man on Google",
+            "Google Iron Man",
+            "find Iron Man on Google",
+            "look up Iron Man",
+            "search the web for Iron Man",
+            "please search for iron man on google",
+        ] {
+            let p = plan(cmd, &SessionContext::default());
+            assert_eq!(steps(&p), vec!["browser_search"], "cmd: {cmd}");
+            assert_eq!(search_arg(&p, "site"), "google", "cmd: {cmd}");
+            let url = search_arg(&p, "url");
+            assert!(url.starts_with("https://www.google.com/search?q="), "cmd: {cmd} url: {url}");
+            assert!(url.to_lowercase().contains("iron%20man"), "cmd: {cmd} url: {url}");
+        }
+    }
+
+    #[test]
+    fn search_youtube_explicit() {
+        for cmd in [
+            "Search Iron Man on YouTube",
+            "find Iron Man videos",
+            "play Iron Man on YouTube",
+            "search youtube for iron man trailer",
+            "Find Avengers trailer on YouTube",
+        ] {
+            let p = plan(cmd, &SessionContext::default());
+            let s = steps(&p);
+            assert_eq!(s, vec!["browser_search"], "cmd: {cmd}");
+            assert_eq!(search_arg(&p, "site"), "youtube", "cmd: {cmd}");
+            let url = search_arg(&p, "url");
+            assert!(url.starts_with("https://www.youtube.com/results?search_query="), "cmd: {cmd} url: {url}");
+        }
+    }
+
+    #[test]
+    fn search_default_is_google_not_youtube() {
+        let p = plan("Search Iron Man", &SessionContext::default());
+        assert_eq!(steps(&p), vec!["browser_search"]);
+        assert_eq!(search_arg(&p, "site"), "google");
+        assert_eq!(search_arg(&p, "query"), "iron man");
+        assert!(search_arg(&p, "url").starts_with("https://www.google.com/search?q="));
+    }
+
+    #[test]
+    fn followup_reuses_last_engine() {
+        // After a Google search, "search Avengers" stays on Google.
+        let mut ctx = SessionContext::default();
+        ctx.last_search_engine = Some("google".to_string());
+        let p = plan("Now search Avengers", &ctx);
+        assert_eq!(steps(&p), vec!["browser_search"]);
+        assert_eq!(search_arg(&p, "site"), "google");
+        assert_eq!(search_arg(&p, "query"), "avengers");
+
+        // After YouTube, the same follow-up goes to YouTube.
+        let mut ctx = SessionContext::default();
+        ctx.last_search_engine = Some("youtube".to_string());
+        let p = plan("now search iron man", &ctx);
+        assert_eq!(steps(&p), vec!["browser_search"]);
+        assert_eq!(search_arg(&p, "site"), "youtube");
+    }
+
+    #[test]
+    fn play_on_youtube_opens_search_results_not_a_click() {
+        let p = plan("Play Iron Man trailer on YouTube", &SessionContext::default());
+        let s = steps(&p);
+        assert_eq!(s, vec!["browser_search"], "must generate a results URL, not attempt DOM clicks");
+        assert!(search_arg(&p, "url").starts_with("https://www.youtube.com/results?search_query="));
+    }
+
+    #[test]
+    fn search_bing() {
+        let p = plan("Search Linux on Bing", &SessionContext::default());
+        assert_eq!(steps(&p), vec!["browser_search"]);
+        assert_eq!(search_arg(&p, "site"), "bing");
+        assert!(search_arg(&p, "url").starts_with("https://www.bing.com/search?q="));
+    }
+
+    #[test]
+    fn open_browser_command() {
+        for cmd in ["open browser", "launch the browser", "open my browser", "start a browser"] {
+            let p = plan(cmd, &SessionContext::default());
+            assert_eq!(steps(&p), vec!["open_browser"], "cmd: {cmd}");
+        }
+    }
+
+    #[test]
+    fn open_specific_browsers() {
+        for (cmd, app) in [("launch Chrome", "google-chrome"), ("open Firefox", "firefox")] {
+            let p = plan(cmd, &SessionContext::default());
+            assert_eq!(steps(&p), vec!["open_application"], "cmd: {cmd}");
+            let step = first_step(&p).expect("step");
+            assert_eq!(step.arguments["application"], app, "cmd: {cmd}");
+        }
+    }
+
+    #[test]
+    fn open_sites_and_domains() {
+        for (cmd, expected) in [
+            ("open GitHub", "https://github.com"),
+            ("Open Gmail", "https://mail.google.com"),
+            ("open Google", "https://www.google.com"),
+            ("Open YouTube", "https://www.youtube.com"),
+            ("open example.com", "https://example.com"),
+            ("open example.com in the browser", "https://example.com"),
+        ] {
+            let p = plan(cmd, &SessionContext::default());
+            assert_eq!(steps(&p), vec!["open_url"], "cmd: {cmd}");
+            assert_eq!(search_arg(&p, "url"), expected, "cmd: {cmd}");
+        }
+    }
+
+    #[test]
+    fn bare_domain_opens() {
+        let p = plan("example.com", &SessionContext::default());
+        assert_eq!(steps(&p), vec!["open_url"]);
+        assert_eq!(search_arg(&p, "url"), "https://example.com");
+    }
+
+    #[test]
+    fn youtube_bare_word_opens_site() {
+        let p = plan("YouTube", &SessionContext::default());
+        assert_eq!(steps(&p), vec!["open_url"]);
+        assert_eq!(search_arg(&p, "url"), "https://www.youtube.com");
+    }
+
+    // --- preserved legacy behavior -----------------------------------------
 
     #[test]
     fn routes_screenshot() {
@@ -1326,11 +1803,13 @@ mod tests {
     }
 
     #[test]
-    fn routes_open_youtube() {
+    fn routes_open_youtube_and_play() {
+        // Single deterministic action: search the query on YouTube directly.
         let p = plan("Open YouTube and play a great song", &SessionContext::default());
         let s = steps(&p);
-        assert!(s.iter().any(|x| x == "open_url"));
-        assert!(s.contains(&"browser_search".to_string()));
+        assert_eq!(s, vec!["browser_search"]);
+        assert_eq!(search_arg(&p, "site"), "youtube");
+        assert_eq!(search_arg(&p, "query"), "great song");
     }
 
     #[test]
@@ -1361,6 +1840,16 @@ mod tests {
             assert_eq!(s.name, "open_url");
             assert_eq!(s.arguments["url"], "https://example.com");
         }
+    }
+
+    #[test]
+    fn command_meta_readout() {
+        let m = command_meta("Search Iron Man on Google", &SessionContext::default());
+        assert_eq!(m["intent"], "web_search");
+        assert_eq!(m["platform"], "google");
+        assert_eq!(m["query"], "iron man");
+        assert_eq!(m["action"], "search");
+        assert!(m["url"].as_str().unwrap_or("").starts_with("https://www.google.com/search?q="));
     }
 
     #[test]

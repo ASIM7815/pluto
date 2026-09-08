@@ -26,6 +26,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 regex = "1"
 walkdir = "2"
 which = "7"
+cpal = "0.15"
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["sync", "time", "fs", "process", "macros", "rt"] }
 log = "0.4"
