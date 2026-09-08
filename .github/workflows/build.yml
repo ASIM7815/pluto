@@ -105,28 +105,31 @@ jobs:
           set -e
           # Install through apt (resolves the package's declared dependencies)
           sudo apt-get install -y ./dist/Pluto_1.0.0_amd64.deb
-          dpkg -s pluto | grep -E "^(Package|Version|Status):"
-          test -x /usr/bin/pluto && echo "BINARY_OK: /usr/bin/pluto"
-          test -f /usr/share/applications/Pluto.desktop && echo "DESKTOP_OK: Pluto.desktop"
-          grep -q "Exec=pluto" /usr/share/applications/Pluto.desktop && echo "DESKTOP_EXEC_OK"
-          test -f /usr/share/icons/hicolor/512x512/apps/pluto.png && echo "ICON_OK: 512x512 pluto.png"
+          {
+            echo "## Installed .deb verification"
+            dpkg -s pluto | grep -E "^(Package|Version|Status):"
+            test -x /usr/bin/pluto && echo "- BINARY_OK: /usr/bin/pluto is executable"
+            test -f /usr/share/applications/Pluto.desktop && echo "- DESKTOP_OK: /usr/share/applications/Pluto.desktop exists"
+            grep -q "Exec=pluto" /usr/share/applications/Pluto.desktop && echo "- DESKTOP_EXEC_OK: Exec=pluto"
+            test -f /usr/share/icons/hicolor/512x512/apps/pluto.png && echo "- ICON_OK: hicolor 512x512 pluto.png"
+          } >> "$GITHUB_STEP_SUMMARY"
           xvfb-run -a -s "-screen 0 1280x900x24" bash -c '
             export WEBKIT_DISABLE_COMPOSITING_MODE=1
             /usr/bin/pluto > /tmp/pluto-installed.log 2>&1 &
             APP_PID=$!
             sleep 12
             if kill -0 "$APP_PID" 2>/dev/null; then
-              echo "INSTALLED_APP_ALIVE after 12s"
-              scrot /tmp/pluto_installed.png && echo "INSTALLED_SCREENSHOT_OK"
+              echo "- INSTALLED_APP_ALIVE: /usr/bin/pluto ran 12s under Xvfb" >> "$GITHUB_STEP_SUMMARY"
+              scrot /tmp/pluto_installed.png && echo "- INSTALLED_SCREENSHOT_OK: UI rendered" >> "$GITHUB_STEP_SUMMARY"
               kill "$APP_PID"
             else
-              echo "INSTALLED_APP_EXITED_EARLY"
+              echo "- INSTALLED_APP_EXITED_EARLY" >> "$GITHUB_STEP_SUMMARY"
               cat /tmp/pluto-installed.log || true
               exit 1
             fi
           '
+          echo "- INSTALL_TEST_DONE" >> "$GITHUB_STEP_SUMMARY"
           sudo apt-get remove -y pluto >/dev/null 2>&1 || true
-          echo "INSTALL_TEST_DONE"
 
       - name: Smoke test GUI under Xvfb
         if: success()
