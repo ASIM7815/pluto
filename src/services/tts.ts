@@ -4,18 +4,11 @@ let currentAudio: HTMLAudioElement | null = null;
 let speechToken = 0;
 let playbackCancelled = false;
 
-function decodeBase64Audio(base64: string, mime = "audio/mpeg"): Blob {
+function decodeBase64Audio(base64: string, mime = "audio/wav"): Blob {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: mime });
-}
-
-function audioMimeForEngine(tts: string): string {
-  // ElevenLabs and gTTS return MP3; the mock WAV fallback is wav.
-  if (tts === "local_tts") return "audio/mpeg";
-  if (tts === "elevenlabs") return "audio/mpeg";
-  return "audio/mpeg";
 }
 
 function playAudioBlob(blob: Blob): Promise<void> {
@@ -75,21 +68,21 @@ async function maybeRestartListening(): Promise<void> {
   const store = usePlutoStore.getState();
   if (!store.autoListen || !store.voiceEngaged || store.isSpeaking) return;
   // Re-arm the microphone a beat after the response ends so the user can just
-  // keep talking. Only real SpeechRecognition is re-armed - the demo fallback
-  // never auto-restarts (that would loop forever).
+  // keep talking (native Rust capture restarts automatically).
   await import("./voice").then((m) => m.voiceService.autoRestartListening());
 }
 
 /**
- * Speak a response. Prefers backend audio (ElevenLabs / local TTS) when
- * present, otherwise falls back to the browser's built-in speechSynthesis so
- * PLUTO always talks. Resolves when speech finishes (or is stopped via
- * cancelSpeech) and then returns the UI to LISTENING for the next command.
+ * Speak a response. Prefers backend audio (Piper / pico2wave / espeak-ng
+ * female voice) when present, otherwise falls back to the browser's built-in
+ * speechSynthesis so PLUTO always talks. Resolves when speech finishes (or is
+ * stopped via cancelSpeech) and then returns the UI to LISTENING.
  */
 export async function speak(
   text: string,
   audioBase64?: string | null,
-  ttsEngine?: string
+  _ttsEngine?: string,
+  mime?: string
 ): Promise<void> {
   const store = usePlutoStore.getState();
   playbackCancelled = false;
@@ -99,7 +92,7 @@ export async function speak(
   try {
     if (audioBase64) {
       try {
-        await playAudioBlob(decodeBase64Audio(audioBase64, audioMimeForEngine(ttsEngine || "")));
+        await playAudioBlob(decodeBase64Audio(audioBase64, mime || "audio/wav"));
       } catch {
         await speakBrowser(text);
       }

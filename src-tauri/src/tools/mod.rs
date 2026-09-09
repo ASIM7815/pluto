@@ -134,24 +134,19 @@ pub fn run_process(
     }));
 
     let start = std::time::Instant::now();
-    let mut status = None;
-    loop {
+    let status = loop {
         match child.try_wait() {
-            Ok(Some(s)) => {
-                status = Some(s);
-                break;
-            }
+            Ok(Some(s)) => break Some(s),
             _ => {
                 if start.elapsed().as_millis() as u64 >= timeout_ms {
                     let _ = child.kill();
                     let _ = child.wait();
-                    status = None;
-                    break;
+                    break None;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(40));
             }
         }
-    }
+    };
 
     let out = stdout.take().and_then(|h| h.join().ok()).unwrap_or_default();
     let err = stderr.take().and_then(|h| h.join().ok()).unwrap_or_default();
@@ -215,6 +210,7 @@ pub async fn run_tool(name: &str, arguments: &Value) -> ToolResult {
             "move_file" => files::move_file(&arguments),
             "copy_file" => files::copy_file(&arguments),
             // apps + browser
+            "open_browser" => apps::open_browser(),
             "open_application" => apps::open_application(&arguments),
             "close_application" => apps::close_application(&arguments),
             "switch_to_application" => apps::switch_to_application(&arguments),

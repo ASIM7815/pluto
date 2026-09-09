@@ -51,10 +51,13 @@ export default function SettingsPage() {
                 onChange={(e) => setVoiceModel(e.target.value)}
                 className="w-full p-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-zinc-200 focus:outline-none focus:border-[#ff1f2d]"
               >
-                <option value="local-whisper-v3">Whisper-v3 Local (GPU Accelerated - Recommended)</option>
-                <option value="browser-web-speech">Browser Native Web Speech API</option>
-                <option value="openai-whisper-api">OpenAI Whisper Cloud API</option>
+                <option value="local-whisper-v3">PLUTO Native Microphone + whisper.cpp (local, optional external model)</option>
+                <option value="none">No STT engine installed (type commands)</option>
               </select>
+              <p className="text-[10px] text-zinc-500 font-mono">
+                Microphone capture is native (no Web Speech API, no cloud). For voice commands, install
+                whisper.cpp and put a small ggml model in ~/.cache/pluto/ - PLUTO keeps working without it.
+              </p>
             </div>
           </GlassCard>
 
@@ -70,10 +73,12 @@ export default function SettingsPage() {
                 onChange={(e) => setLlmProvider(e.target.value)}
                 className="w-full p-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-zinc-200 focus:outline-none focus:border-[#ff1f2d]"
               >
-                <option value="local-ollama">Local Ollama / Llama-3 70B (Zero Cloud Leakage)</option>
-                <option value="anthropic-claude">Anthropic Claude 3.7 Sonnet (Cloud API)</option>
-                <option value="openai-gpt4o">OpenAI GPT-4o (Cloud API)</option>
+                <option value="pluto-pattern">PLUTO Pattern Intelligence (on-device, deterministic)</option>
+                <option value="local-ollama">Local Ollama (optional, if you install it)</option>
               </select>
+              <p className="text-[10px] text-zinc-500 font-mono">
+                PLUTO understands desktop commands fully on-device - no API keys, no cloud services required.
+              </p>
             </div>
           </GlassCard>
 

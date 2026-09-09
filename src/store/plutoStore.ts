@@ -29,8 +29,11 @@ interface PlutoStore {
   // PLUTO re-arms the mic (and only the mic) after it finishes speaking.
   autoListen: boolean;
   voiceEngaged: boolean;
+  // Live microphone level (0..1) streamed by the Rust capture loop.
+  audioLevel: number;
 
   setState: (state: PlutoState) => void;
+  setAudioLevel: (level: number) => void;
   setIntent: (intent: string | null, confidence: number | null, tools: string[]) => void;
   setVoiceEngaged: (engaged: boolean) => void;
   setAutoListen: (value: boolean) => void;
@@ -107,8 +110,10 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
   voiceError: null,
   autoListen: true,
   voiceEngaged: false,
+  audioLevel: 0,
 
   setState: (state) => set({ state }),
+  setAudioLevel: (audioLevel) => set({ audioLevel }),
   setIntent: (intent, confidence, tools) =>
     set({ intent, confidence, recommendedTools: tools }),
   setVoiceEngaged: (voiceEngaged) => set({ voiceEngaged }),
@@ -151,6 +156,7 @@ export const usePlutoStore = create<PlutoStore>((set) => ({
       confidence: null,
       recommendedTools: [],
       voiceError: null,
-      voiceEngaged: false
+      voiceEngaged: false,
+      audioLevel: 0
     })
 }));

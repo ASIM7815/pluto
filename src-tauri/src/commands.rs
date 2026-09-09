@@ -5,8 +5,9 @@ use crate::state::AppState;
 use crate::tools;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 async fn run_sync(f: fn(&Value) -> tools::ToolResult, args: Value) -> tools::ToolResult {
     tauri::async_runtime::spawn_blocking(move || f(&args))
@@ -182,7 +183,7 @@ pub async fn pluto_get_system_info() -> Result<SystemInfoPayload, String> {
         host: sysinfo::System::host_name().unwrap_or_else(|| "PLUTO-DESKTOP".to_string()),
         uptime: format_uptime(sysinfo::System::uptime()),
         security_status: "Sandboxed & Confirmation-gated".to_string(),
-        voice_engine: "PLUTO Local TTS (espeak-ng)".to_string(),
+        voice_engine: crate::tools::voice::voice_engine_label(),
         llm_engine: "PLUTO Pattern Intelligence (on-device)".to_string(),
     })
 }
@@ -328,6 +329,40 @@ pub async fn pluto_tts_voices() -> Result<Value, String> {
 pub async fn pluto_stt_status() -> Result<Value, String> {
     let result = tools::voice::stt_status();
     Ok(result.data.clone())
+}
+
+/// Native push-to-talk: capture from the system microphone with a lightweight
+/// VAD, then transcribe with whisper.cpp when available. Streams live audio
+/// levels as `pluto-event { type: "audio_level" }` while recording.
+#[tauri::command]
+pub async fn pluto_stt_record(app: AppHandle) -> Result<Value, String> {
+    let state = app.state::<Arc<AppState>>().inner().clone();
+    state.mic_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.mic_cancel.clone();
+    let (tx, rx) = std::sync::mpsc::channel::<f32>();
+    let level_app = app.clone();
+    let level_task = tauri::async_runtime::spawn(async move {
+        while let Ok(level) = rx.recv() {
+            let _ = level_app.emit("pluto-event", json!({ "type": "audio_level", "level": level }));
+        }
+    });
+    let result = tauri::async_runtime::spawn_blocking(move || tools::voice::stt_record(&cancel, tx))
+        .await
+        .map_err(|e| format!("Speech capture task panicked: {e}"))?;
+    level_task.abort();
+    if result.success {
+        Ok(result.data.clone())
+    } else {
+        Err(result.message)
+    }
+}
+
+/// Ask an in-progress native microphone capture to stop (push-to-talk off).
+#[tauri::command]
+pub fn pluto_voice_cancel(app: AppHandle) {
+    let state = app.state::<Arc<AppState>>().inner().clone();
+    state.mic_cancel.store(true, Ordering::SeqCst);
+    let _ = app;
 }
 
 #[tauri::command]

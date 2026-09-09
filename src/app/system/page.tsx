@@ -26,8 +26,8 @@ export default function SystemPage() {
     distro: "Loading...",
     host: "-",
     uptime: "-",
-    voiceEngine: "PLUTO ElevenLabs TTS",
-    llmEngine: "GPT-OSS 120B",
+    voiceEngine: "PLUTO Piper / pico2wave / espeak-ng (local)",
+    llmEngine: "PLUTO Pattern Intelligence (on-device)",
   });
 
   useEffect(() => {
