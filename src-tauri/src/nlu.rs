@@ -708,8 +708,20 @@ fn greeting_plan(text: &str, t: &str, w: &str) -> Option<Vec<PlanItem>> {
         return Some(vec![PlanItem::Text(capabilities_reply())]);
     }
     let bare = t == "hi" || t == "hey" || t == "yo" || t == "sup" || t == "hiya" || t == "hello" || t == "howdy" || t == "what's up" || t == "whats up";
+    // A greeting word must be followed by whitespace/punctuation (or be the
+    // whole input) - otherwise "YouTube" would be swallowed as "yo" and never
+    // reach the browser router.
+    let greeting_prefix = GREETING_WORDS.iter().any(|g| {
+        let gw = g.trim_end();
+        t == gw
+            || (t.starts_with(gw)
+                && t.as_bytes()
+                    .get(gw.len())
+                    .map(|b| !b.is_ascii_alphanumeric())
+                    .unwrap_or(true))
+    });
     if bare
-        || (GREETING_WORDS.iter().any(|g| t.starts_with(g.trim_end()))
+        || (greeting_prefix
             && !["open", "search", "play", "create", "send", "delete", "move", "copy", "close",
                 "run", "take", "set", "read", "find", "list", "screenshot", "show", "mute",
                 "quit", "kill", "start", "launch", "type", "scroll", "click", "zoom", "install"]
