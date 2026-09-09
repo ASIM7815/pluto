@@ -10,7 +10,7 @@ sudo apt install ./dist/Pluto_1.0.0_amd64.deb
 The package installs:
 
 - `/usr/bin/pluto` — the native Tauri/Rust binary
-- `/usr/share/applications/pluto.desktop` — application-menu entry
+- `/usr/share/applications/Pluto.desktop` — application-menu entry (`Exec=pluto`)
 - `/usr/share/icons/hicolor/**/apps/pluto.png` — icons (from `pluto.png`)
 
 Launch from the application menu ("PLUTO") or run `pluto` in a terminal.

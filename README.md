@@ -72,8 +72,8 @@ every push to this branch:
 7. Uploads the `.deb` as the `pluto-deb` artifact and commits it back to
    `dist/Pluto_1.0.0_amd64.deb`
 
-Latest build: `Pluto_1.0.0_amd64.deb`
-SHA-256: `3e72991ebca69bf847227d1fee50752ccd62c0f38b6f904e854b7eaa2358efb3`
+Latest build: `Pluto_1.0.0_amd64.deb` (~18.5 MB, installed ~24 MB)
+SHA-256: `b142c9f2585bc87171bb4ee35078ca0c1da9ccf50607216a25be724a88887d54`
 
 ## Docs
 
